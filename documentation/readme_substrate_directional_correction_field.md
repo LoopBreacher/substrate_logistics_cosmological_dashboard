@@ -63,9 +63,9 @@ This module performs line-of-sight ray integration across the 3D cosmic web to d
 ## ⚡ Performance Benchmarks & Exact Reproduction Notes
 
 ### 🔬 Reference Benchmark Calibration
-* **Active Survey Catalog:** `Cosmicflows-4` (Volume Depth $d_{\text{max}} = 150.0\text{ Mpc}$)[cite: 30, 33]
+* **Active Survey Catalog:** `Cosmicflows-4` (Volume Depth $d_{\text{max}} = 150.0\text{ Mpc}$)
 * **Field Smoothing Scale:** $\sigma = 2.0\text{ Mpc}$
-* **Global Vacuum Floor:** $H_{\text{global}} = 67.42\text{ km/s/Mpc}$[cite: 30, 33]
+* **Global Vacuum Floor:** $H_{\text{global}} = 67.42\text{ km/s/Mpc}$
 * **Execution Time:** `~0.05s` per line-of-sight ray calculation
 
 ### 🎯 Exact Benchmark Targets
