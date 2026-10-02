@@ -5,8 +5,8 @@ import streamlit as st
 
 try:
     import healpy as hp
-except ImportError:
-    from .. import healpy as hp
+except (ImportError, ModuleNotFoundError):
+    from . import healpy_compat as hp
 
 from .data_loader import (
     get_hlocal_batch,

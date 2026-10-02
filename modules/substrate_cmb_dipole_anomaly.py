@@ -8,8 +8,8 @@ import astropy.units as u
 
 try:
     import healpy as hp
-except ImportError:
-    from .. import healpy as hp
+except (ImportError, ModuleNotFoundError):
+    from . import healpy_compat as hp
 
 from .data_loader import (
     C_LIGHT,

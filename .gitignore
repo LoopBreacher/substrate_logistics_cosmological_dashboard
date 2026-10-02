@@ -10,9 +10,6 @@ __pycache__/
 *$py.class
 *.pyo
 
-# Explicit package init ignore (as requested)
-__init__.py
-__init__
 
 # Cached astronomical catalog arrays & density trees
 *.npz
