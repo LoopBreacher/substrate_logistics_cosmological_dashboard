@@ -10,9 +10,9 @@ The **Substrate Void Boundary Dynamics** module models spatial metric unspooling
 ### 1. Dual-Scale Intergalactic Density Field
 The module calculates continuous background density along ray paths using a dual 3D Gaussian smoothing kernel architecture to decouple macro intergalactic background volume from fine filament core density:
 
-$$\rho_{\text{macro}}(\vec{r}) = \frac{1}{(2\pi \sigma_{\text{macro}}^2)^{3/2}} \sum_i N_i \exp\left( -\frac{\vert{}\vec{r}_i - \vec{r}\vert{}^2}{2\sigma_{\text{macro}}^2} \right) \cdot \frac{1}{\text{MPC\_TO\_METER}^3}$$
+$$\rho_{\text{macro}}(\vec{r}) = \frac{1}{(2\pi \sigma_{\text{macro}}^2)^{3/2}} \sum_i N_i \exp\left( -\frac{\vert\vec{r}_i - \vec{r}\vert^2}{2\sigma_{\text{macro}}^2} \right) \cdot \frac{1}{\mathrm{MPC\_TO\_METER}^3}$$
 
-$$\rho_{\text{filament}}(\vec{r}) = \frac{1}{(2\pi \sigma_{\text{filament}}^2)^{3/2}} \sum_i N_i \exp\left( -\frac{\vert{}\vec{r}_i - \vec{r}\vert{}^2}{2\sigma_{\text{filament}}^2} \right) \cdot \frac{1}{\text{MPC\_TO\_METER}^3}$$
+$$\rho_{\text{filament}}(\vec{r}) = \frac{1}{(2\pi \sigma_{\text{filament}}^2)^{3/2}} \sum_i N_i \exp\left( -\frac{\vert\vec{r}_i - \vec{r}\vert^2}{2\sigma_{\text{filament}}^2} \right) \cdot \frac{1}{\mathrm{MPC\_TO\_METER}^3}$$
 
 * **Macro Kernel Bandwidth:** $\sigma_{\text{macro}} = 1.5\text{ Mpc}$ (smooths intergalactic background node volume).
 * **Filament Kernel Bandwidth:** $\sigma_{\text{filament}} = 0.5\text{ Mpc}$ (isolates narrow, high-density cluster wall filaments).
@@ -20,12 +20,12 @@ $$\rho_{\text{filament}}(\vec{r}) = \frac{1}{(2\pi \sigma_{\text{filament}}^2)^{
 ### 2. Local Unspooling Expansion Field
 The local metric expansion rate $H_{\text{local}}(\vec{r})$ is driven directly by compiled intergalactic matter density $\rho_{\text{macro}}(\vec{r})$ above the fundamental vacuum baseline:
 
-$$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \frac{1}{\text{UNIT\_CONV}} \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_{\text{macro}}(\vec{r})}{3}}$$
+$$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \frac{1}{\mathrm{UNIT\_CONV}} \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_{\text{macro}}(\vec{r})}{3}}$$
 
 Where:
 * $H_{\text{global}} = 67.42\text{ km/s/Mpc}$ (global Planck vacuum floor).
 * $\mathcal{K}_\Omega = 1.11587 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ (Substrate Anchor Constant).
-* $\text{UNIT\_CONV} = 3.24078 \times 10^{-20}\text{ s}^{-1} / (\text{km/s/Mpc})$.
+* $\mathrm{UNIT\_CONV} = 3.24078 \times 10^{-20}\text{ s}^{-1} / (\text{km/s/Mpc})$.
 
 ### 3. Recession Velocity & Radial Velocity Shear
 The radial recession velocity $v_{\text{rec}}(r)$ accumulated along the ray path from the void center $r=0$ to $r$ is given by:

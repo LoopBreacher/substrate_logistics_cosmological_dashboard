@@ -62,7 +62,7 @@ $$b_{\text{tot}} = \arcsin\left(\frac{d_z}{A_{\text{total}}}\right), \quad l_{\t
 * `sigma_mpc`: Base Gaussian kernel bandwidth $\sigma_0$ ($0.5\text{--}20.0\text{ Mpc}$).
 * `h_global`: Global vacuum expansion floor ($67.42\text{ km/s/Mpc}$).
 * `v_pec_km_s`: Observer peculiar velocity ($369.0\text{ km/s}$).
-* `l_kin_deg`, `b_kin_deg`: Kinematic Doppler apex in Galactic coordinates ($(264.0^\circ, +48.0^\circ)$).
+* `l_kin_deg`, `b_kin_deg`: Kinematic Doppler apex in Galactic coordinates (264.0°, +48.0°).
 
 ---
 
@@ -71,8 +71,8 @@ $$b_{\text{tot}} = \arcsin\left(\frac{d_z}{A_{\text{total}}}\right), \quad l_{\t
 The module outputs a full-sky Mollweide projection map ($\Delta T(\theta, \phi)$ in mK) rendered in Galactic coordinates:
 
 * **Background Temperature Field:** Colormap (`coolwarm`) illustrating the composite sky anisotropy $\Delta T_{\text{total}}(\hat{n})$.
-* **Kinematic Apex Marker (Black Circle):** Pure Solar Doppler direction at $(264.0^\circ, +48.0^\circ)$.
-* **Centaurus / Local Sheet Peak Marker (Cyan Triangle):** Overdensity attraction center at $(280.0^\circ, +45.0^\circ)$.
+* **Kinematic Apex Marker (Black Circle):** Pure Solar Doppler direction at (264.0°, +48.0°).
+* **Centaurus / Local Sheet Peak Marker (Cyan Triangle):** Overdensity attraction center at (280.0°, +45.0°).
 * **Total Composite Dipole Axis Marker (Yellow Star):** Net observable dipole axis shifted toward local matter concentrations.
 
 ---

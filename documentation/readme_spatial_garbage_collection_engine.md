@@ -42,10 +42,9 @@ $$\dot{N}_{\text{pixels}}(r) = \frac{\dot{V}_{\text{deleted}}(r)}{V_{\text{node}
 
 * **Kernel Lock Horizon Limit ($1.0c$):**
 
-$$\text{Safety Margin} = \max\left(0, \left(1.0 - \frac{v_{\text{inflow}}}{c}\right) \times 100\%\right)$$
+$$\text{Safety Margin} = \max\left(0, \left(1.0 - \frac{v_{\text{inflow}}}{c}\right) \times 100\right)\%$$
 
-
-$$\text{Capacity Used} = \min\left(100\%, \frac{v_{\text{inflow}}}{c} \times 100\%\right)$$
+$$\text{Capacity Used} = \min\left(100, \frac{v_{\text{inflow}}}{c} \times 100\right)\%$$
 
 
 

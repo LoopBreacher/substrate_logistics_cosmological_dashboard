@@ -37,7 +37,7 @@ Instead of modeling the universe as an expanding smooth background populated by 
   * `isosurface_opacity`: Transparency level ($0.05\text{--}0.60$) for inner void vs. outer shell visibility.
 
 * **Algorithmic Pipeline:**
-  1. **Point Selection & Mass Compilation:** Downsamples catalog nodes if $N_{\text{total}} > \text{max\_galaxies}$ and evaluates $M_B = (N \cdot m_p) / M_\odot$.
+  1. **Point Selection & Mass Compilation:** Downsamples catalog nodes if $N_{\text{total}} > \mathrm{max\_galaxies}$ and evaluates $M_B = (N \cdot m_p) / M_\odot$.
   2. **Field Evaluation:** Computes $H_{\text{local}}(\vec{r})$ for each displayed galaxy node using `get_hlocal(...)`.
   3. **3D Volumetric Mesh:** Builds a 3D grid across the spatial extent, evaluates $H_{\text{local}}$ at grid intersections, and generates `go.Isosurface` web traces.
   4. **Plotly Figure Assembly:** Renders `go.Scatter3d` nodes and `go.Isosurface` meshes formatted under a dark cosmological UI theme.

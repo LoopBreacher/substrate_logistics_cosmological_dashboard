@@ -18,17 +18,23 @@ When localized baryonic acceleration drops near $a_\Omega$, effective accelerati
 $$g_{\text{eff}}(r) = \sqrt{g_{\text{baryon}}(r)^2 + g_{\text{baryon}}(r) \cdot a_\Omega}$$
 
 Baryonic acceleration is computed directly from proton node counts $N_{\text{total}} = M_B / m_p$ and Substrate constant $\mathcal{K}_\Omega$:
+
 $$g_{\text{baryon}}(r) = \frac{N_{\text{total}} \mathcal{K}_\Omega}{r^2} \quad \left(\equiv \frac{G M_B}{r^2}\right)$$
 
 ### 3. Extended Mass Profile (Exponential Disk)
 To prevent core point-mass singularities ($r \to 0$), the enclosed mass profile $M_{\text{enc}}(r)$ models an exponential disk with scale length $R_d$:
+
 $$M_{\text{enc}}(r) = M_B \left[ 1 - \left(1 + \frac{r}{R_d}\right) e^{-r/R_d} \right]$$
 
-* **Exact Central Acceleration Limit:** $g_{\text{baryon}}(0) = \lim_{r \to 0} \frac{N_{\text{total}} \mathcal{K}_\Omega \left[1 - (1 + r/R_d) e^{-r/R_d}\right]}{r^2} = \mathbf{\frac{N_{\text{total}} \mathcal{K}_\Omega}{2 R_d^2}}$
+* **Exact Central Acceleration Limit:** 
+
+  $$g_{\text{baryon}}(0) = \lim_{r \to 0} \frac{N_{\text{total}} \mathcal{K}_\Omega \left[1 - (1 + r/R_d) e^{-r/R_d}\right]}{r^2} = \frac{N_{\text{total}} \mathcal{K}_\Omega}{2 R_d^2}$$
+
 * **Coordinate Origin Boundary:** $v(0) = 0.0 \text{ km/s}$
 
 ### 4. Asymptotic Velocity Floor (Baryonic Tully-Fisher Relation)
 At large radii ($r \gg R^*$), $g_{\text{baryon}} \ll a_\Omega$, simplifying effective acceleration to $g_{\text{eff}} \to \sqrt{g_{\text{baryon}} a_\Omega} = \frac{\sqrt{N_{\text{total}} \mathcal{K}_\Omega a_\Omega}}{r}$. Substituting this into circular orbital velocity ($v = \sqrt{r \cdot g_{\text{eff}}}$) algebraically cancels $r$:
+
 $$v_{\text{flat}} = \sqrt[4]{N_{\text{total}} \mathcal{K}_\Omega a_\Omega} \quad \left(\equiv \sqrt[4]{G M_B a_\Omega}\right)$$
 
 This provides a zero-parameter derivation of the empirical Baryonic Tully-Fisher Relation ($M_B \propto v_{\text{flat}}^4$).

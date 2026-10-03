@@ -15,11 +15,13 @@ Unlike standard cosmology, which treats the sound horizon as a free thermodynami
 
 * **3D Volumetric Drag Penalty ($R_{\text{restricted}}$):**
   Subjected to 3D Topological Drag ($\mathcal{C}_\delta = 4.72 \times 10^{-4}$):
+
   $$R_{\text{restricted}} = R_{\text{max}} \cdot (3 \cdot \mathcal{C}_\delta) = (3.9017 \times 10^{27}\text{ m}) \times (0.001416) = 5.5248 \times 10^{24}\text{ m}$$
 
 * **Pentagonal Caching Lock ($R_{\text{BAO}}$):**
   Divided by the dodecahedral Geometric Compilation Scalar ($1.2$):
-  $$R_{\text{BAO}} = \frac{R_{\text{restricted}}}{1.2} = \frac{5.5248 \times 10^{24}\text{ m}}{1.2} = 4.6040 \times 10^{24}\text{ m} \equiv \mathbf{149.21\text{ Mpc}}$$
+
+  $$R_{\text{BAO}} = \frac{R_{\text{restricted}}}{1.2} = \frac{5.5248 \times 10^{24}\text{ m}}{1.2} = 4.6040 \times 10^{24}\text{ m} \equiv 149.21\text{ Mpc}$$
 
 ### 2. Line-of-Sight Acoustic Horizon Path Integrals
 For photons traversing a ray path along directional unit vector $\hat{n}$:

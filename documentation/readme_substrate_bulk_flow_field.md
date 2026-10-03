@@ -44,7 +44,7 @@ In deep void cores where matter density vanishes ($\rho_N \to 0$), the local uns
 
 ### Algorithmic Pipeline
 1. **Catalog Coordinate Query:** Fetches $X, Y, Z$ positions and node counts $N = M / m_p$ from the active `cKDTree` index.
-2. **2D Grid Construction:** Builds an $N \times N$ spatial mesh bounded by $\pm \text{spatial\_bounds}$ (e.g., $\pm 150\text{ Mpc}$).
+2. **2D Grid Construction:** Builds an $N \times N$ spatial mesh bounded by $\pm\text{spatial\_bounds}$ (e.g., $\pm 150\text{ Mpc}$).
 3. **Density & Expansion Evaluation:** Computes $H_{\text{local}}(x, y, 0)$ across the mesh using Gaussian kernel bandwidth $\sigma$.
 4. **Vector Field Generation:** Takes spatial derivatives to obtain inflow components $V_x = \alpha \frac{\partial H}{\partial x}$, $V_y = \alpha \frac{\partial H}{\partial y}$, and magnitude $V_{\text{mag}} = \sqrt{V_x^2 + V_y^2}$.
 5. **Render & Export:** Renders color-coded contours, vector quivers, and plane-sliced galaxy points ($\vert{}Z\vert{} \le z_{\text{thickness}}$).
@@ -56,7 +56,7 @@ In deep void cores where matter density vanishes ($\rho_N \to 0$), the local uns
 The module outputs a unified 2D spatial diagnostic plot (`figsize=(10, 7)`):
 
 * **Background Contour Map (`plasma` colormap):** Displays the continuous local unspooling field $H_{\text{local}}(\vec{r})$, shading from underdense void cores ($67.42\text{ km/s/Mpc}$, dark purple) up to dense supercluster filaments ($71.40\text{ km/s/Mpc}$, bright yellow).
-* **Vector Quiver Overlay (`cool` colormap):** Displays directional arrows representing $\vec{v}_{\text{inflow}}$. Vector length and color scale with velocity magnitude $V_{\text{mag}}$, illustrating convergence onto overdense filament corridors and divergence away from void centers.
+* **Vector Quiver Overlay (`cool` colormap):** Displays directional arrows representing inflow velocity vectors $\vec{v}_{\text{inflow}}$. Vector length and color scale with velocity magnitude $V_{\text{mag}}$, illustrating convergence onto overdense filament corridors and divergence away from void centers.
 * **Catalog Galaxy Overlay:** White scatter points representing real catalog galaxies located within the Z-slice plane ($\vert{}Z\vert{} \le z_{\text{thickness}}$).
 
 ---

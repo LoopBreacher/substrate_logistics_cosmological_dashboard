@@ -8,7 +8,9 @@ The `redshift_path_integral` module computes first-principles line-of-sight path
 ## 🔬 Physical Foundation & First Principles
 
 * **Local Space-Unspooling Rate:**
+
   $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_N(\vec{r})}{3}}$$
+
   where $H_{\text{global}} = 67.42\text{ km/s/Mpc}$ represents the fundamental Planck vacuum floor, $\rho_N(\vec{r})$ is the 3D compiled proton node density ($\text{nodes/m}^3$), and $\mathcal{K}_\Omega = 1.11587 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant.
 
 * **Line-of-Sight Redshift Accumulation Integral:**
