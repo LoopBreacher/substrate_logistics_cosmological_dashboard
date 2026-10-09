@@ -65,15 +65,16 @@ Focuses on line-of-sight ray tracing, directional anisotropy, and zero-parameter
 ---
 
 ### Domain 2: Cosmic Web & Velocity Dynamics
-Focuses on spatial velocity gradients, void wall dynamics, 2D RSD correlations, rotation curves, and 3D web rendering.
+Focuses on spatial velocity gradients, void wall dynamics, 2D RSD correlations, rotation curves, 3D web rendering, and 3D Dark Energy field theory.
 
 | Module | Visual Diagnostic Preview | Physical Principle & Highlights | Detailed Docs |
 | :--- | :--- | :--- | :--- |
-| **Bulk Flow Field** | <img src="documentation/plot_substrate_bulk_flow_field.png" width="300" alt="Bulk Flow Field" /> | Maps 2D spatial vector fields driven by expansion gradients $\vec{v}_{\text{inflow}} = \alpha \nabla H_{\text{local}}(\vec{r})$. | [Read Documentation](documentation/readme_substrate_bulk_flow_field.md) |
+| **Bulk Flow Field** | <img src="documentation/plot_substrate_bulk_flow_field.png" width="300" alt="Bulk Flow Field" /> | Maps 2D spatial vector fields driven by expansion gradients <b><i>v</i></b><sub>inflow</sub> = α · ∇<i>H</i><sub>local</sub>(<b>r</b>). | [Read Documentation](documentation/readme_substrate_bulk_flow_field.md) |
 | **Void Boundary Dynamics** | <img src="documentation/plot_substrate_void_boundary_dynamics.png" width="300" alt="Void Boundary Dynamics" /> | Evaluates vacuum floor locking in void cores and velocity shear spikes ($dv_{\text{rec}}/dr$) across wall corridors. | [Read Documentation](documentation/readme_substrate_void_boundary_dynamics.md) |
 | **Redshift Space Distortions** | <img src="documentation/plot_substrate_redshift_space_distortions.png" width="300" alt="Redshift Space Distortions" /> | Zero-parameter simultaneous extraction of Kaiser coherent squashing and cluster-core Fingers-of-God (FoG) elongation. | [Read Documentation](documentation/readme_substrate_redshift_space_distortions.md) |
 | **Galactic Rotation Curves** | <img src="documentation/plot_substrate_galactic_rotation_curve.png" width="300" alt="Galactic Rotation Curves" /> | Eradicates Dark Matter halos; flat rotation speeds lock onto the Kinematic Underflow floor $v_{\text{flat}} = \sqrt[4]{G M_B a_\Omega}$. | [Read Documentation](documentation/readme_substrate_rotation_curves.md) |
 | **3D Cosmic Web Viewer** | <img src="documentation/plot_substrate_3d_density_viewer.png" width="300" alt="3D Cosmic Web Viewer" /> | Interactive Plotly 3D Cartesian rendering of active survey galaxies and volumetric filament web isosurfaces. | [Read Documentation](documentation/readme_substrate_3d_density_viewer.md) |
+| **3D Dark Energy Field** | <img src="documentation/plot_substrate_3d_dark_energy.png" width="300" alt="3D Dark Energy Field" /> | Derives the 3D spatial Dark Energy equation of state <i>w</i><sub>0</sub>(<b>r</b>) and pointer recycling drift <i>w</i><sub>a</sub>(<b>r</b>) from compiled matter density, enforcing the cosmic sum rule <i>w</i><sub>0</sub> + <i>w</i><sub>a</sub> = -1.0. | [Read Documentation](documentation/readme_substrate_3d_dark_energy.md) |
 
 ---
 

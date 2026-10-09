@@ -35,6 +35,7 @@ from modules.substrate_rotation_curves import run_rotation_curve_analysis, ROTAT
 from modules.spatial_garbage_collection_engine import run_spatial_garbage_collection_analysis, CELESTIAL_PRESETS
 from modules.cpu_bandwidth_throttling import run_cpu_bandwidth_throttling_analysis, THROTTLING_PRESETS
 from modules.substrate_3d_density_viewer import run_3d_density_viewer_analysis
+from modules.substrate_3d_dark_energy import run_3d_dark_energy_analysis, PHYSICAL_ENVIRONMENTS_DE
 
 # ==========================================
 # PAGE CONFIGURATION & CUSTOM STYLING
@@ -655,7 +656,7 @@ with domain_1:
 with domain_2:
     sub_2 = st.radio(
         "Select Module:",
-        ["🌊 Bulk Flow Field", "🧱 Void Boundary Dynamics", "📐 Redshift Space Distortions (Kaiser & FoG)", "🌀 Galactic Rotation Curves & Kinematic Underflow", "🧊 Interactive 3D Cosmic Web Density Viewer"],
+        ["🌊 Bulk Flow Field", "🧱 Void Boundary Dynamics", "📐 Redshift Space Distortions (Kaiser & FoG)", "🌀 Galactic Rotation Curves & Kinematic Underflow", "🧊 Interactive 3D Cosmic Web Density Viewer", "⚡ 3D Dynamic Dark Energy Field ($w_0, w_a$)"],
         horizontal=True
     )
     st.divider()
@@ -1045,6 +1046,101 @@ with domain_2:
                 st.dataframe(df_3d, use_container_width=True)
         else:
             st.info("⚙️ **Ready to Render:** Configure display controls above and click **🚀 Render Interactive 3D Density Field**.")
+            
+    # 16. 3D DYNAMIC DARK ENERGY FIELD (w0, wa)
+    elif "3D Dynamic Dark Energy" in sub_2:
+        st.header("3D Dynamic Dark Energy Field Theory ($w_0, w_a$)")
+        st.info(
+            r"⚡ **Physical Principle:** In Substrate Logistics, Dark Energy is not a static cosmological constant ($w = -1.0$). "
+            r"Local spatial address deletion in compiled filaments generates a pointer recycling boost $\Delta H(\vec{r})$, "
+            r"producing a 3D equation of state field $w_0(\vec{r}) = -1.0 + \frac{\Delta H(\vec{r})}{H_{\text{global}}}$ and derivative $w_a(\vec{r}) = -1.0 - w_0(\vec{r})$. "
+            r"This establishes the strict structural invariant $w_0(\vec{r}) + w_a(\vec{r}) = -1.0$, explaining why cosmological observational surveys inherently measure $w_0 > -1$ and $w_a < 0$ when sampling compiled matter structures."
+        )
+
+        with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
+            st.markdown(r"""
+            ### What This Module Demonstrates
+            * **2D Equatorial Slice of 3D Dark Energy Field:** Maps the localized 3D equation of state $w_0(\vec{r})$ across cosmic web structures directly from compiled node densities $\rho_N(\vec{r})$, rendered via a 2D cross-sectional slice plane ($Z = 0\text{ Mpc}$).
+            * **Structural Invariant Verification ($w_0 + w_a = -1.0$):** Proves that present-day pointer recycling boosts ($w_0 > -1.0$) force the CPL dynamic derivative to be strictly negative ($w_a < 0$), guaranteeing early-universe void floor convergence ($w(0) = -1.0$).
+            * **Point-Wise vs. Path-Integrated Dynamics:** Disambiguates instantaneous point-wise filament shifts $w_0(D)$ from cumulative photon path integrals $w_{\text{LOS}}(D)$, demonstrating how survey target selection functions induce apparent observational scatter.
+
+            ---
+            ### 🔬 Key Physical Mechanics
+            * **Local Pointer Recycling Boost:**
+              $$w_0(\vec{r}) = -1.0 + \frac{\Delta H(\vec{r})}{H_{\text{global}}} = -1.0 + \frac{H_{\text{local}}(\vec{r}) - H_{\text{global}}}{H_{\text{global}}}$$
+            * **CPL Structural Sum Invariant:**
+              $$w(a) = w_0 + w_a (1 - a), \quad w(0) = -1.0 \implies w_a(\vec{r}) = -1.0 - w_0(\vec{r}) \implies \mathbf{w_0(\vec{r}) + w_a(\vec{r}) = -1.0}$$
+            * **Cumulative Sightline Path Integration:**
+              $$w_{\text{LOS}}(D) = -1.0 + \frac{1}{D \cdot H_{\text{global}}} \int_0^D \Delta H(s \hat{n}) \, ds$$
+
+            ---
+            ### ⚙️ Interactive Controls & Parameter Reference
+            * **Physical Density Environment:** Select predefined smoothing scales ($\sigma = 0.8\text{--}13.3\text{ Mpc}$) representing distinct physical environments from macro cosmic volume averages down to virialized cluster cores.
+            * **Target Galaxy / Cluster Dropdown:** Select any galaxy from the active survey catalog to sample its exact 3D Cartesian coordinates $(X, Y, Z)$ and local compiled density.
+            * **Line-of-Sight Celestial Coordinates ($\text{RA}, \text{Dec}$):** Sky directions for ray-tracing path integration. Auto-populated from the target galaxy's sky position, with manual numeric override capability.
+
+            ---
+            ### 📡 Physical Environment Scales & Behavioral Guidelines
+            * **Macro Cosmic Volume ($\sigma = 13.3\text{ Mpc}$):** Averages over $40\text{ Mpc}$ void-dominated spheres ($V \sim 2.7 \times 10^5\text{ Mpc}^3$), producing volume-smoothed relaxation values ($w_0 \approx -0.972$).
+            * **Galactic Host Scale ($\sigma = 1.8\text{ Mpc}$):** Resolves typical host galaxy environments in the Local Sheet, yielding baseline host values ($w_0 \approx -0.916$).
+            * **Virial Cluster Core Peak ($\sigma = 0.8\text{ Mpc}$):** Samples dense cluster nodes (e.g., Virgo/Coma), capturing peak pointer recycling shifts ($w_0 \approx -0.730$).
+            """)
+
+        from modules.substrate_3d_dark_energy import PHYSICAL_ENVIRONMENTS_DE, run_3d_dark_energy_analysis
+
+        col_preset, col_gal = st.columns([1.6, 1.8])
+        preset_choice_de = col_preset.selectbox(
+            "Select Physical Density Environment:",
+            list(PHYSICAL_ENVIRONMENTS_DE.keys()),
+            index=2  # Defaults to Galactic Host Environment (σ=1.8 Mpc)
+        )
+        
+        selected_sigma_de = PHYSICAL_ENVIRONMENTS_DE[preset_choice_de]["sigma_mpc"]
+        vol_stats_de = compute_kernel_volume_stats(selected_sigma_de)
+        
+        col_preset.caption(
+            f"ℹ️ **Environment:** {PHYSICAL_ENVIRONMENTS_DE[preset_choice_de]['description']}  \n"
+            f"📏 **Enclosed Search Radius ($3\\sigma$):** `{vol_stats_de['r_3sigma_mpc']:.1f} Mpc` | "
+            f"📦 **$1\\sigma$ Core Vol:** `{vol_stats_de['v_1sigma_mpc3']:.1f} Mpc³` | "
+            f"🌐 **$3\\sigma$ Vol:** `{vol_stats_de['v_3sigma_mpc3']:,.0f} Mpc³`"
+        )
+
+        gal_options_de = [f"#{i}: {gal_names[i]} (d={np.linalg.norm(gal_positions[i]):.1f} Mpc)" for i in range(len(gal_names))]
+        selected_de_gal = col_gal.selectbox("Select Target Galaxy / Cluster:", gal_options_de, index=min(10, len(gal_options_de)-1))
+        target_de_idx = int(selected_de_gal.split(":")[0].replace("#", ""))
+        
+        # Calculate Target's Auto Celestial Coordinates
+        target_pos_de = gal_positions[target_de_idx]
+        target_dist_de = float(np.linalg.norm(target_pos_de))
+        auto_dec = float(np.degrees(np.arcsin(np.clip(target_pos_de[2] / max(0.1, target_dist_de), -1.0, 1.0))))
+        auto_ra = float(np.degrees(np.arctan2(target_pos_de[1], target_pos_de[0])) % 360.0)
+
+        col_ra, col_dec = st.columns(2)
+        los_ra_de = col_ra.number_input("Line-of-Sight RA [deg]", value=round(auto_ra, 2), step=1.0)
+        los_dec_de = col_dec.number_input("Line-of-Sight Dec [deg]", value=round(auto_dec, 2), step=1.0)
+
+        run_de = st.button("🚀 Execute 3D Dark Energy Field Analysis", type="primary", use_container_width=True)
+        m_key = "mod_res_3d_dark_energy"
+
+        if run_de:
+            with st.spinner(f"Evaluating 3D Dark Energy equation of state (w0, wa) field for {preset_choice_de.split('(')[0]}..."):
+                fig_de, df_de, metrics_de = run_3d_dark_energy_analysis(
+                    tree, gal_positions, nodes_per_galaxy, gal_names,
+                    preset_key=preset_choice_de,
+                    target_idx=target_de_idx,
+                    target_ra=los_ra_de,
+                    target_dec=los_dec_de,
+                    sigma_mpc=selected_sigma_de,
+                    max_dist_mpc=float(d_max_input),
+                    h_global=h_global_input
+                )
+                st.session_state[m_key] = (fig_de, df_de, metrics_de)
+
+        if m_key in st.session_state:
+            fig_de, df_de, metrics_de = st.session_state[m_key]
+            display_module_outputs(fig_de, df_de, metrics_de, "3d_dark_energy_equation_of_state.csv")
+        else:
+            st.info("⚙️ **Ready to Compute:** Select physical density environment and target galaxy above, then click **🚀 Execute 3D Dark Energy Field Analysis**.")
 
 # ------------------------------------------------------------------------------
 # DOMAIN 3: ASTROPHYSICAL & HORIZON TESTS
