@@ -221,14 +221,33 @@ def load_density_tree(catalog_name="UNG 2013 (Local Volume ≤ 35 Mpc)", d_max_m
         except Exception:
             pass
 
-    # 2. Fetch Catalog via VizieR
-    v = Vizier(row_limit=-1)
-    try:
-        cats = v.get_catalogs(vizier_id)
-        cat_table = cats[0]
-    except Exception:
-        cats = v.get_catalogs("J/AJ/127/2031")
-        cat_table = cats[0]
+    # 2. Fetch Catalog via VizieR (with automatic mirror failover for CDS outage)
+    vizier_mirrors = [
+        "vizier.cfa.harvard.edu",
+        "vizier.idia.ac.za",
+        "vizier.nao.ac.jp",
+        "vizier.china-vo.org",
+        "vizier.cds.unistra.fr",
+    ]
+
+    cat_table = None
+    for cat_id in [vizier_id, "J/AJ/127/2031"]:
+        for mirror in vizier_mirrors:
+            try:
+                v = Vizier(row_limit=-1, vizier_server=mirror, timeout=30)
+                cats = v.get_catalogs(cat_id)
+                if len(cats) > 0:
+                    cat_table = cats[0]
+                    break
+            except Exception:
+                continue
+        if cat_table is not None:
+            break
+
+    if cat_table is None:
+        raise RuntimeError(
+            f"Unable to retrieve catalog '{vizier_id}' from any VizieR mirror ({', '.join(vizier_mirrors)})."
+        )
 
     # Parse Coordinates, Distance, Magnitude, and Names
     ra_deg, dec_deg, coord_frame = parse_sky_coordinates(cat_table)
