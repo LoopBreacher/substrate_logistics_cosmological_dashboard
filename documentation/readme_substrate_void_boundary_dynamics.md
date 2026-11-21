@@ -23,9 +23,9 @@ The local metric expansion rate $H_{\text{local}}(\vec{r})$ is driven directly b
 $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \frac{1}{\mathrm{UNIT\_CONV}} \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_{\text{macro}}(\vec{r})}{3}}$$
 
 Where:
-* $H_{\text{global}} = 67.42\text{ km/s/Mpc}$ (global Planck vacuum floor).
-* $\mathcal{K}_\Omega = 1.11587 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ (Substrate Anchor Constant).
-* $\mathrm{UNIT\_CONV} = 3.24078 \times 10^{-20}\text{ s}^{-1} / (\text{km/s/Mpc})$.
+* $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$ (closed-form global vacuum floor).
+* $\mathcal{K}_\Omega = 1.11592 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ (Substrate Anchor Constant).
+* $\mathrm{UNIT\_CONV} = 3.240779 \times 10^{-20}\text{ s}^{-1} / (\text{km/s/Mpc})$.
 
 ### 3. Recession Velocity & Radial Velocity Shear
 The radial recession velocity $v_{\text{rec}}(r)$ accumulated along the ray path from the void center $r=0$ to $r$ is given by:
@@ -48,12 +48,12 @@ $$\frac{dv_{\text{rec}}}{dr} = H_{\text{local}}(r) + r \frac{dH_{\text{local}}}{
   * `void_center_mpc`: 3D Cartesian coordinates of local void core origin (default: $[-2.5, -6.0, -1.5]\text{ Mpc}$).
   * `max_r_mpc`: Radial evaluation extent in Mpc (default: $18.0\text{ Mpc}$).
   * `n_pts`: Number of radial sampling steps (default: $200$).
-  * `h_global`: Fundamental vacuum expansion floor in km/s/Mpc (default: $67.42$).
+  * `h_global`: Fundamental vacuum expansion floor in km/s/Mpc (default: $67.4275$).
 
 * **Algorithmic Pipeline:**
   1. **Trajectory Vector Construction:** Constructs a normalized ray direction vector $\hat{e}_{\text{sheet}}$ pointing from the void core origin toward the Virgo cluster wall ($\text{RA}=187.7^\circ, \text{Dec}=12.4^\circ, d=16.5\text{ Mpc}$).
-  2. **Dual-Scale Kernel Query:** For each radial step $r_i \in [0, 18.0\text{ Mpc}]$, queries `cKDTree` within $3\sigma$ neighbor spheres to compute $\rho_{\text{macro}}(r_i)$ and $\rho_{\text{filament}}(r_i)$.
-  3. **Expansion & Velocity Shear Evaluation:** Computes $H_{\text{local}}(r_i)$ and derives radial recession velocity $v_{\text{rec}}(r_i)$ and boundary shear $dv_{\text{rec}}/dr_i$ using finite-difference numerical gradients (`np.gradient`).
+  2. **Batched Dual-Scale Kernel Query:** Evaluates all $200$ radial steps $r_i \in [0, 18.0\text{ Mpc}]$ using two vectorized `get_compiled_node_density_batch(...)` C++ `cKDTree` calls (`sigma_mpc=1.5` and `sigma_mpc=0.5`) to obtain $\rho_{\text{macro}}(r)$ and $\rho_{\text{filament}}(r)$.
+  3. **Expansion & Velocity Shear Evaluation:** Computes $H_{\text{local}}(r)$ vectorized and derives radial recession velocity $v_{\text{rec}}(r)$ and boundary shear $dv_{\text{rec}}/dr$ using `np.gradient`.
   4. **Visualization & KPI Packaging:** Plots 3-panel dark diagnostic figure, compiles metric cards, and returns exportable pandas DataFrame.
 
 ---
@@ -63,7 +63,7 @@ $$\frac{dv_{\text{rec}}}{dr} = H_{\text{local}}(r) + r \frac{dH_{\text{local}}}{
 * **Panel 1 (Void-to-Wall Intergalactic Density Profiles):**
   Renders continuous background macro density $\rho_{\text{macro}}(r)$ alongside localized filament core density $\rho_{\text{filament}}(r)$ in $\text{nodes/m}^3$. Illustrates the dramatic density jump as the trajectory exits the void core and pierces the cluster wall corridor.
 * **Panel 2 (Radial Expansion Rate Unspooling Field $H_{\text{local}}$):**
-  Traces the radial expansion profile $H_{\text{local}}(r)$ relative to the horizontal vacuum floor line $H_{\text{global}} = 67.42\text{ km/s/Mpc}$. Demonstrates void core vacuum floor locking at $r \to 0$ and unspooling expansion boosts at the wall boundary.
+  Traces the radial expansion profile $H_{\text{local}}(r)$ relative to the horizontal vacuum floor line $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$. Demonstrates void core vacuum floor locking at $r \to 0$ and unspooling expansion boosts at the wall boundary.
 * **Panel 3 (Cosmic Void Wall Velocity Shear Dynamics $dv_{\text{rec}}/dr$):**
   Plots the differential radial velocity shear spike marking the dynamic wall interface. Shows the physical shear driver evacuating galaxies out of underdense voids.
 
@@ -75,7 +75,7 @@ $$\frac{dv_{\text{rec}}}{dr} = H_{\text{local}}(r) + r \frac{dH_{\text{local}}}{
 | :--- | :--- | :--- |
 | `Void Core Expansion` | `km/s/Mpc` | Expansion rate deep inside the underdense void core ($r=0\text{ Mpc}$). |
 | `Peak Wall Expansion` | `km/s/Mpc` | Maximum $H_{\text{local}}$ unspooling peak reached inside the wall corridor. |
-| `Max Velocity Shear` | `km/s/Mpc` | Peak differential velocity shear spike $(dv_{\text{rec}}/dr)_{\text{max}}$ across the boundary. |
+| `Max Velocity Shear` | `km/s/Mpc` | Peak differential velocity shear spike $`(dv_{\text{rec}}/dr)_{\text{max}}`$ across the boundary. |
 | `Shear Peak Distance` | `Mpc` | Radial distance from void center where velocity shear reaches its maximum. |
 
 * **CSV Export Schema (`void_boundary_wall_profile.csv`):**

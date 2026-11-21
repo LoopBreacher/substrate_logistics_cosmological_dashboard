@@ -5,9 +5,9 @@ from scipy.spatial import cKDTree
 
 from .data_loader import (
     H_GLOBAL,
-    K_OMEGA,
-    UNIT_CONV,
-    MPC_TO_METER
+    MPC_TO_METER,
+    get_compiled_node_density_batch,
+    get_hlocal_batch
 )
 
 # ==========================================
@@ -44,68 +44,48 @@ def compute_catalog_rsd_field(
     """
     N_gal = len(gal_positions)
     rho_N_baseline = compute_dynamic_catalog_baseline(gal_positions, nodes_per_galaxy)
-    
+    rng = np.random.default_rng(42)
+
     if N_gal > 5000:
-        np.random.seed(42)
-        eval_indices = np.random.choice(N_gal, size=5000, replace=False)
+        eval_indices = rng.choice(N_gal, size=5000, replace=False)
     else:
         eval_indices = np.arange(N_gal)
-        
+
     eval_positions = gal_positions[eval_indices]
     N_eval = len(eval_positions)
-    
-    v_los_total = np.zeros(N_eval)
-    v_infall_los = np.zeros(N_eval)
-    v_virial_los = np.zeros(N_eval)
-    rho_N_array = np.zeros(N_eval)
-    
-    for i, idx_gal in enumerate(eval_indices):
-        pos = gal_positions[idx_gal]
-        r_norm = np.linalg.norm(pos)
-        if r_norm == 0:
-            continue
-        los_dir = pos / r_norm
-        
-        # 1. Evaluate compiled node density rho_N
-        idx_ball = tree.query_ball_point(pos, r=3.0 * sigma_mpc)
-        if idx_ball:
-            dists = np.linalg.norm(gal_positions[idx_ball] - pos, axis=1)
-            kernel = np.exp(-0.5 * (dists / sigma_mpc)**2) / ((2.0 * np.pi * sigma_mpc**2)**1.5)
-            rho_N = np.sum(nodes_per_galaxy[idx_ball] * kernel) / (MPC_TO_METER**3)
-        else:
-            rho_N = 0.0
-            
-        rho_N_array[i] = rho_N
-        
-        # 2. Coherent Infall (Kaiser Effect): Evaluate grad(H_local) along line of sight
-        pos_p = pos + dr * los_dir
-        pos_m = pos - dr * los_dir
-        
-        idx_p = tree.query_ball_point(pos_p, r=3.0 * sigma_mpc)
-        rho_p = np.sum(nodes_per_galaxy[idx_p] * np.exp(-0.5 * (np.linalg.norm(gal_positions[idx_p] - pos_p, axis=1) / sigma_mpc)**2) / ((2.0 * np.pi * sigma_mpc**2)**1.5)) / (MPC_TO_METER**3) if idx_p else 0.0
-        h_p = h_global + (np.sqrt((8.0 * np.pi * K_OMEGA * rho_p) / 3.0) / UNIT_CONV) if rho_p > 0 else h_global
-        
-        idx_m = tree.query_ball_point(pos_m, r=3.0 * sigma_mpc)
-        rho_m = np.sum(nodes_per_galaxy[idx_m] * np.exp(-0.5 * (np.linalg.norm(gal_positions[idx_m] - pos_m, axis=1) / sigma_mpc)**2) / ((2.0 * np.pi * sigma_mpc**2)**1.5)) / (MPC_TO_METER**3) if idx_m else 0.0
-        h_m = h_global + (np.sqrt((8.0 * np.pi * K_OMEGA * rho_m) / 3.0) / UNIT_CONV) if rho_m > 0 else h_global
-        
-        grad_H_los = (h_p - h_m) / (2.0 * dr)
-        v_infall_los[i] = alpha_inflow * grad_H_los
-        
-        # 3. Virial Dispersion (Fingers-of-God): Overdensity relative to dynamic baseline
-        if rho_N > rho_N_baseline:
-            np.random.seed(idx_gal + 42)
-            overdensity_ratio = rho_N / rho_N_baseline
-            v_disp_scale = 250.0 * np.sqrt(overdensity_ratio - 1.0)
-            v_virial_los[i] = np.random.normal(0.0, v_disp_scale)
-        else:
-            v_virial_los[i] = 0.0
-            
-        v_los_total[i] = v_infall_los[i] + v_virial_los[i]
-        
-    los_dirs = eval_positions / np.linalg.norm(eval_positions, axis=1, keepdims=True)
+
+    r_norms = np.linalg.norm(eval_positions, axis=1, keepdims=True)
+    nonzero_mask = r_norms[:, 0] > 0.0
+    safe_norms = np.where(r_norms > 0.0, r_norms, 1.0)
+    los_dirs = np.where(r_norms > 0.0, eval_positions / safe_norms, 0.0)
+
+    # Vectorized density & line-of-sight finite-difference gradient evaluation
+    rho_N_raw = get_compiled_node_density_batch(
+        tree, gal_positions, nodes_per_galaxy, eval_positions, sigma_mpc=sigma_mpc
+    )
+    rho_N_array = np.where(nonzero_mask, rho_N_raw, 0.0)
+
+    h_p = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, eval_positions + dr * los_dirs,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
+    h_m = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, eval_positions - dr * los_dirs,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
+    v_infall_los = np.where(nonzero_mask, alpha_inflow * (h_p - h_m) / (2.0 * dr), 0.0)
+
+    # Virial Dispersion (Fingers-of-God): Overdensity relative to dynamic baseline
+    v_virial_los = np.zeros(N_eval, dtype=float)
+    overdense_mask = nonzero_mask & (rho_N_array > rho_N_baseline)
+    if np.any(overdense_mask):
+        overdensity_ratios = rho_N_array[overdense_mask] / rho_N_baseline
+        v_disp_scales = 250.0 * np.sqrt(overdensity_ratios - 1.0)
+        v_virial_los[overdense_mask] = rng.normal(0.0, v_disp_scales)
+
+    v_los_total = v_infall_los + v_virial_los
     s_positions = eval_positions + (v_los_total[:, np.newaxis] / h_global) * los_dirs
-    
+
     return eval_positions, s_positions, v_los_total, v_infall_los, v_virial_los, rho_N_array, rho_N_baseline
 
 # ==========================================

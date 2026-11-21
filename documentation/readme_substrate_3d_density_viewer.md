@@ -17,7 +17,7 @@ Instead of modeling the universe as an expanding smooth background populated by 
 
 * **Substrate Mechanics:**
   * **Baryonic Mass Node Conversion:** Each catalog galaxy contains integer proton nodes $N = M_B / m_p$ derived zero-parameter from photometric luminosity. Marker sizes scale logarithmically with visible baryonic mass $M_B$.
-  * **Color-Coded Expansion Field:** Galaxy nodes and volumetric web meshes are color-coded by $H_{\text{local}}(\vec{r})$, highlighting overdense cluster corridors ($H_{\text{local}} \approx 72\text{--}74\text{ km/s/Mpc}$) versus underdense cosmic void interiors ($H_{\text{local}} \to H_{\text{global}} = 67.42\text{ km/s/Mpc}$).
+  * **Color-Coded Expansion Field:** Galaxy nodes and volumetric web meshes are color-coded by $H_{\text{local}}(\vec{r})$, highlighting overdense cluster corridors ($H_{\text{local}} \approx 72\text{--}74\text{ km/s/Mpc}$) versus underdense cosmic void interiors ($H_{\text{local}} \to H_{\text{global}} = 67.4275\text{ km/s/Mpc}$).
 
 ---
 
@@ -30,7 +30,7 @@ Instead of modeling the universe as an expanding smooth background populated by 
   * `nodes_per_galaxy`: `np.ndarray` of integer proton node counts $N = M_B / m_p$.
   * `gal_names`: `list` or `np.ndarray` of target galaxy identifiers.
   * `sigma_mpc`: Gaussian field smoothing scale bandwidth $\sigma$ [Mpc].
-  * `h_global`: Global vacuum floor expansion rate $H_{\text{global}} = 67.42\text{ km/s/Mpc}$.
+  * `h_global`: Global vacuum floor expansion rate $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$.
   * `grid_res`: Volumetric sampling grid resolution $N \times N \times N$ for 3D isosurface mesh generation.
   * `max_galaxies`: Point display cap (e.g., 2,500) to optimize WebGL frame rates.
   * `show_isosurface`: `bool` toggle to enable/disable 3D filament web meshes.
@@ -38,8 +38,8 @@ Instead of modeling the universe as an expanding smooth background populated by 
 
 * **Algorithmic Pipeline:**
   1. **Point Selection & Mass Compilation:** Downsamples catalog nodes if $N_{\text{total}} > \mathrm{max\_galaxies}$ and evaluates $M_B = (N \cdot m_p) / M_\odot$.
-  2. **Field Evaluation:** Computes $H_{\text{local}}(\vec{r})$ for each displayed galaxy node using `get_hlocal(...)`.
-  3. **3D Volumetric Mesh:** Builds a 3D grid across the spatial extent, evaluates $H_{\text{local}}$ at grid intersections, and generates `go.Isosurface` web traces.
+  2. **Vectorized Field Evaluation:** Batch-computes $H_{\text{local}}(\vec{r})$ across all displayed galaxy nodes using `get_hlocal_batch(...)`.
+  3. **Vectorized 3D Volumetric Mesh:** Builds a 3D grid across the spatial extent, batch-evaluates $H_{\text{local}}$ at all $N^3$ intersections via `get_hlocal_batch(...)`, and generates `go.Isosurface` web traces.
   4. **Plotly Figure Assembly:** Renders `go.Scatter3d` nodes and `go.Isosurface` meshes formatted under a dark cosmological UI theme.
 
 ---

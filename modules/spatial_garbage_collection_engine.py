@@ -6,13 +6,12 @@ from .data_loader import (
     C_LIGHT,
     K_OMEGA,
     M_PROTON,
-    MPC_TO_METER
+    MPC_TO_METER,
+    LAMBDA_BAR_P,
+    V_NODE,
+    T_OMEGA,
+    C_DELTA_INV_FOURTH_ROOT
 )
-
-# Bare-metal sub-node spatial pixel floor anchor (meters)
-LAMBDA_P_BAR = 2.10309e-16
-# Sub-node spatial voxel volume V_node = lambda_p_bar^3 (m^3)
-V_NODE_M3 = LAMBDA_P_BAR ** 3  # 9.301e-48 m^3
 
 # Speed of light Kernel Lock threshold ratio: v_lock = 1.0 * c
 V_LOCK_RATIO = 1.0
@@ -91,9 +90,10 @@ def compute_garbage_collection_field(
     v_inflow_c_ratio = v_inflow_m_s / C_LIGHT
     
     vol_deleted_m3_s = 4.0 * np.pi * (r_grid_m ** 2) * v_inflow_m_s
-    pixel_purge_rate_s = vol_deleted_m3_s / V_NODE_M3
+    pixel_purge_rate_s = vol_deleted_m3_s / V_NODE
     
     g_surface = (node_count_N * K_OMEGA) / (surface_radius_m ** 2)
+    r_quantum_m = (C_LIGHT * LAMBDA_BAR_P) / (T_OMEGA * np.sqrt((LAMBDA_BAR_P / node_count_N) * g_surface))
     v_inflow_surface_m_s = np.sqrt(2.0 * g_surface * surface_radius_m)
     v_orbit_surface_m_s = np.sqrt(g_surface * surface_radius_m)
     v_surf_c_ratio = v_inflow_surface_m_s / C_LIGHT
@@ -103,11 +103,12 @@ def compute_garbage_collection_field(
     capacity_used_pct = min(100.0, v_surf_c_ratio * 100.0)
     
     vol_deleted_surface = 4.0 * np.pi * (surface_radius_m ** 2) * v_inflow_surface_m_s
-    pixel_purge_surface = vol_deleted_surface / V_NODE_M3
+    pixel_purge_surface = vol_deleted_surface / V_NODE
     
     return {
         "node_count_N": node_count_N,
         "r_kernel_lock_m": r_kernel_lock_m,
+        "r_quantum_m": r_quantum_m,
         "g_surface": g_surface,
         "v_inflow_surface_m_s": v_inflow_surface_m_s,
         "v_orbit_surface_m_s": v_orbit_surface_m_s,
@@ -175,6 +176,14 @@ def run_spatial_garbage_collection_analysis(
     # Dynamic scaling for non-black hole targets vs near-light speed targets
     if v_max_kms < 0.5 * c_kms:
         ax1.set_ylim(0, v_max_kms * 1.18)
+        if r_max_ratio >= 4.0:
+            ax1.axvline(3.0, color='#38bdf8', linestyle=':', linewidth=1.2, alpha=0.85,
+                        label=r'Plasmapause Shell ($3 R$)')
+            ax1.axvline(4.0, color='#a855f7', linestyle=':', linewidth=1.2, alpha=0.85,
+                        label=r'Van Allen Boundary ($4 R$)')
+        if r_max_ratio >= 7.0:
+            ax1.axvline(C_DELTA_INV_FOURTH_ROOT, color='#fbbf24', linestyle='--', linewidth=1.5,
+                        label=rf'Drag Stagnation Limit (${C_DELTA_INV_FOURTH_ROOT:.3f} R$)')
         badge_text = (f"Kernel Lock Limit: 1.0 c ({c_kms:,.0f} km/s)\n"
                       f"Safety Margin: {res['safety_margin_pct']:.4f}%\n"
                       f"Capacity Used: {res['capacity_used_pct']:.6f}%")
@@ -186,14 +195,26 @@ def run_spatial_garbage_collection_analysis(
     else:
         ax1.set_ylim(0, max(v_max_kms, c_kms) * 1.08)
         ax1.axhline(c_kms, color='#f43f5e', linestyle=':', linewidth=1.8, 
-                    label='Kernel Lock Commit Limit ($1.0 \\cdot c$)')
+                    label=r'Kernel Lock Commit Limit ($1.0 \cdot c$)')
         if r_grid[0] <= res["r_kernel_lock_m"] <= r_grid[-1]:
             r_lock_val = res["r_kernel_lock_m"]
             ax1.axvline(res["r_kernel_lock_m"] / radius_m, color='#f43f5e', linestyle='-.', linewidth=1.8, 
                         label=f'Kernel Lock Horizon ($R = {r_lock_val:.3e}$ m)')
+        if res["v_inflow_surface_c_ratio"] >= 0.999:
+            kl_badge = (
+                "BOUNDARY UNSPOOLING ACTIVE (R_EH):\n"
+                "Γ-Phase Matter → I-Phase Radiation\n"
+                "(E = mc² Cache Flush)"
+            )
+            ax1.text(
+                0.04, 0.94, kl_badge, transform=ax1.transAxes,
+                ha='left', va='top', fontsize=8.5, fontweight='bold',
+                color='#fecdd3',
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='#4c0519', edgecolor='#f43f5e', alpha=0.9)
+            )
         legend_loc = 'upper right'
 
-    ax1.set_xlabel('Normalized Radial Distance $r / R_{\mathrm{surface}}$', color='#cbd5e1', fontsize=11)
+    ax1.set_xlabel(r'Normalized Radial Distance $r / R_{\mathrm{surface}}$', color='#cbd5e1', fontsize=11)
     ax1.set_ylabel(r'Velocity $v$ [km/s]', color='#cbd5e1', fontsize=11)
     ax1.set_title(f'Spatial Coordinate Address Inflow: {target_label}', color='#f8fafc', fontsize=12)
     ax1.legend(loc=legend_loc, facecolor='#0f172a', edgecolor='none', fontsize=8.5)
@@ -204,7 +225,7 @@ def run_spatial_garbage_collection_analysis(
     ax2.axvline(1.0, color='#10b981', linestyle='--', linewidth=1.8, label='Physical Surface Boundary')
     ax2.set_yscale('log')
 
-    ax2.set_xlabel('Normalized Radial Distance $r / R_{\mathrm{surface}}$', color='#cbd5e1', fontsize=11)
+    ax2.set_xlabel(r'Normalized Radial Distance $r / R_{\mathrm{surface}}$', color='#cbd5e1', fontsize=11)
     ax2.set_ylabel(r'Spatial Address Deletion Rate [pixels / s]', color='#cbd5e1', fontsize=11)
     ax2.set_title(r'Substrate Memory Garbage Collection Intensity ($E=0$)', color='#f8fafc', fontsize=12)
     ax2.legend(loc='upper right', facecolor='#0f172a', edgecolor='none', fontsize=8.5)
@@ -233,6 +254,7 @@ def run_spatial_garbage_collection_analysis(
         "Escape Velocity (v_escape)": f"{res['v_inflow_surface_m_s']/1000.0:.3f} km/s ({res['v_inflow_surface_c_ratio']:.4e} c)",
         "Low-Orbit Speed (v_orbit)": f"{res['v_orbit_surface_m_s']/1000.0:.3f} km/s",
         "Surface Pixel Purge Rate": f"{res['pixel_purge_surface']:.4e} pixels/s",
+        "Top-Down Quantum Radius": f"{res['r_quantum_m']/1000.0:,.2f} km",
         "Kernel Lock Safety Margin": safety_str
     }
 

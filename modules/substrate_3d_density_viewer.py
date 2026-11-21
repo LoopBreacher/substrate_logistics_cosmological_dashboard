@@ -3,8 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from .data_loader import (
-    get_hlocal,
-    get_compiled_node_density,
+    get_hlocal_batch,
     M_PROTON,
     M_SOLAR_KG,
     H_GLOBAL
@@ -36,11 +35,11 @@ def build_3d_cosmic_web_figure(
     sub_masses_solar = (sub_nodes * M_PROTON) / M_SOLAR_KG
     sub_dists = np.linalg.norm(sub_pos, axis=1)
 
-    # Calculate H_local at each galaxy point
-    sub_h_local = np.array([
-        get_hlocal(tree, gal_positions, nodes_per_galaxy, pos, sigma_mpc=sigma_mpc, h_global=h_global)
-        for pos in sub_pos
-    ])
+    # Calculate H_local at each galaxy point (vectorized)
+    sub_h_local = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, sub_pos,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
 
     # Dynamic scaling for galaxy node markers
     marker_sizes = np.clip(np.log10(np.maximum(sub_masses_solar, 1e6)) * 1.5 - 8.0, 3.0, 12.0)
@@ -90,11 +89,11 @@ def build_3d_cosmic_web_figure(
         X_g, Y_g, Z_g = np.meshgrid(grid_x, grid_y, grid_z, indexing='ij')
         grid_coords = np.vstack([X_g.ravel(), Y_g.ravel(), Z_g.ravel()]).T
 
-        # Evaluate H_local field across 3D grid
-        H_grid_vals = np.array([
-            get_hlocal(tree, gal_positions, nodes_per_galaxy, pos, sigma_mpc=sigma_mpc, h_global=h_global)
-            for pos in grid_coords
-        ])
+        # Evaluate H_local field across 3D grid (vectorized)
+        H_grid_vals = get_hlocal_batch(
+            tree, gal_positions, nodes_per_galaxy, grid_coords,
+            sigma_mpc=sigma_mpc, h_global=h_global
+        )
 
         # Render Isosurface Shells corresponding to overdense web structures
         h_min, h_max = np.min(H_grid_vals), np.max(H_grid_vals)

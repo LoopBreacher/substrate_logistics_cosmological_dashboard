@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.integrate import simpson
+from scipy.integrate import cumulative_trapezoid
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
 from .data_loader import (
-    get_hlocal,
+    get_hlocal_batch,
     H_GLOBAL
 )
 
@@ -27,12 +27,14 @@ def compute_redshift_path(
     cart_dir = cart_dir / np.linalg.norm(cart_dir)
     
     s_array = np.linspace(0.001, max_dist_mpc, n_steps)
-    h_local_samples = np.array([
-        get_hlocal(tree, gal_positions, nodes_per_galaxy, s * cart_dir, sigma_mpc=sigma_mpc, h_global=h_global)
-        for s in s_array
-    ])
-    
-    cz_accumulated = np.array([simpson(h_local_samples[:i], x=s_array[:i]) for i in range(2, n_steps + 1)])
+    ray_pts = np.outer(s_array, cart_dir)
+    h_local_samples = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, ray_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
+
+    cz_full = cumulative_trapezoid(h_local_samples, x=s_array, initial=0.0)
+    cz_accumulated = cz_full[1:]
     s_eval = s_array[1:]
     
     d_naive_global = cz_accumulated / h_global
@@ -97,7 +99,7 @@ def run_redshift_path_analysis(
     plt.tight_layout()
 
     # Diagnostic Summary Table with Exact Distance Interpolation
-    eval_checkpoints = [5.0, 10.0, 15.0, 20.0]
+    eval_checkpoints = [5.0, 10.0, 15.0, 20.0, 50.0, 100.0, 150.0, 200.0]
     eval_checkpoints = [cp for cp in eval_checkpoints if cp <= max_dist_mpc]
     cp_rows = []
     

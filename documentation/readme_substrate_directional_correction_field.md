@@ -1,42 +1,73 @@
-# Line-of-Sight Kinematics & Peculiar Velocity Solver
+# Sky Anisotropy Maps: Full-Sky Expansion & Distance Residual Forecasts (`substrate_directional_correction_field.py`)
 
 ## 🌟 Executive Summary
-This module performs line-of-sight ray integration across the 3D cosmic web to decouple true cosmological expansion ($c z_{\text{exp}}$) from local peculiar velocity flows ($v_{\text{pec}}$). Because local distances ($d < 30\text{ Mpc}$) are determined via gold-standard standard candles (TRGB or Cepheids), attempting to infer distance directly from redshift is fundamentally flawed. This solver uses benchmark physical distances to accurately extract peculiar velocities across cluster infalls and void outflows.
+
+The **Sky Anisotropy Maps** module ray-traces local cosmic unspooling rates across full-sky HEALPix pixels to map directional variations in the Hubble parameter ($`H_{\text{obs}}(\hat{n})`$) and predict supernova distance modulus residuals ($`\Delta\mu(\hat{n})`$) for Euclid and Rubin Observatory (LSST). By rotating Galactic HEALPix sightlines into the ICRS catalog frame (`R_GAL_TO_ICRS`) and batch-evaluating compiled proton node densities along each line of sight, the module replaces single-scalar isotropic FLRW assumptions with zero-parameter directional maps driven directly by 3D survey geometry.
 
 ---
 
 ## 🔬 Physical Foundation & First Principles
 
-* **Line-of-Sight Expansion Path Integral:**
-  $$c z_{\text{exp}} = \int_0^{d_{\text{benchmark}}} H_{\text{local}}(s \hat{n}) \, ds$$
+### 1. Path-Integrated Observed Expansion Field ($`H_{\text{obs}}(\hat{n})`$)
 
-* **Derived Line-of-Sight Peculiar Velocity ($v_{\text{pec}}$):**
-  $$v_{\text{pec}} = c z_{\text{obs}} - c z_{\text{exp}}$$
+Along each full-sky Galactic unit vector $\hat{n}_G$, rays are transformed into the catalog's ICRS reference frame via the exact J2000 orthogonal rotation matrix (`R_GAL_TO_ICRS`):
 
-* **Substrate Mechanics:**
-  * **Density-Dependent Unspooling:** Photon paths traversing overdense cosmic web filaments encounter elevated compiled node density $\rho_N(s)$, increasing $H_{\text{local}}(s)$ along the ray path.
-  * **Kinematic Decomposition:** Rather than assuming a uniform Hubble parameter ($c z = H_0 \cdot d$), the line-of-sight integral accounts for density fluctuations along the line of sight, allowing pure expansion ($c z_{\text{exp}}$) to be isolated from peculiar dynamics ($v_{\text{pec}}$).
+$$\hat{n}_{\text{ICRS}} = \mathbf{R}_{\text{Gal}\to\text{ICRS}} \, \hat{n}_G$$
+
+Integrating the localized unspooling rate $H_{\text{local}}(\vec{r})$ from $s = 0.1\text{ Mpc}$ out to integration depth $D_{\text{max}}$ gives the directional expansion rate:
+
+$$H_{\text{obs}}(\hat{n}) = \frac{1}{D_{\text{max}}} \int_{0.1}^{D_{\text{max}}} H_{\text{local}}(s \, \hat{n}_{\text{ICRS}}) \, ds$$
+
+where:
+
+$$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_N(\vec{r})}{3}}$$
+
+with closed-form vacuum floor $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$ and anchor constant $\mathcal{K}_\Omega = 1.11592 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$.
+
+### 2. Directional Multiplier & SNe Ia Residual Anomaly
+
+* **Directional Expansion Multiplier ($C$):**
+
+  $$C(\hat{n}) = \frac{H_{\text{obs}}(\hat{n})}{H_{\text{global}}}$$
+
+* **Euclid / Rubin (LSST) Distance Modulus Anomaly ($\Delta\mu$):**
+
+  $$\Delta\mu(\hat{n}) = -5 \log_{10}\left( C(\hat{n}) \right)$$
+
+Sightlines piercing dense supercluster corridors yield $C(\hat{n}) > 1$ and $\Delta\mu < 0$ (supernovae appear systematically brighter than an isotropic baseline), whereas deep void sightlines converge toward $C(\hat{n}) \to 1.0$ and $\Delta\mu \to 0.0\text{ mag}$.
 
 ---
 
 ## ⚙️ Architectural & Technical Implementation
 
-* **Primary Function:** `run_line_of_sight_kinematics_analysis(...)`
-* **Core Integrator:** `solve_line_of_sight_kinematics(...)`
-* **Input Parameters:**
-  * `ra_deg`, `dec_deg`: Target sky coordinates in Right Ascension and Declination (ICRS degrees).
-  * `cz_obs`: Observed recessional velocity ($c z_{\text{obs}}$ in $\text{km/s}$).
-  * `d_known`: Physical benchmark distance from TRGB or Cepheid measurements ($\text{Mpc}$).
-  * `tree`: `scipy.spatial.cKDTree` catalog index.
-  * `sigma_mpc`: Gaussian field smoothing scale ($\sigma = 2.0\text{ Mpc}$ reference benchmark).
-  * `h_global`: Vacuum floor Hubble constant ($H_{\text{global}} = 67.42\text{ km/s/Mpc}$).
+* **Primary Driver Function:** `run_anisotropic_sky_forecast(...)`
+* **Cached Ray-Tracing Engine:** `_compute_sky_forecast_cached(...)`
+* **Core Dependencies:** `healpy` (or `modules/healpy_compat.py` via `astropy_healpix`), `modules.data_loader` (`get_hlocal_batch`, `galactic_to_icrs_vecs`, `H_GLOBAL`)
+
+### Input Parameters
+
+* `tree`: `scipy.spatial.cKDTree` spatial index built over active ICRS galaxy coordinates.
+* `gal_positions`: `np.ndarray` of shape $(N, 3)$ in Mpc (ICRS Cartesian).
+* `nodes_per_galaxy`: `np.ndarray` of proton node counts $N = M / m_p$.
+* `nside`: HEALPix resolution parameter ($8, 16, 32$; default `32`, corresponding to $768$, $3,072$, or $12,288$ sky pixels).
+* `d_max_mpc`: Maximum ray-tracing integration depth in Mpc.
+* `sigma_smooth_mpc`: Gaussian kernel bandwidth $\sigma$ in Mpc.
+* `h_global`: Global vacuum floor expansion rate ($67.4275\text{ km/s/Mpc}$).
+
+### Cache Safety & Coordinate Alignment
+
+1. **J2000 Galactic-to-ICRS Rotation:** Pixel directions generated on the Galactic HEALPix sphere (`coord=["G"]`) are rotated into the ICRS catalog frame via `galactic_to_icrs_vecs(pix_vecs)` prior to spatial tree queries.
+2. **Catalog-Aware Caching (`catalog_sig`):** `_compute_sky_forecast_cached` keys Streamlit's `@st.cache_data` store with `catalog_sig = (len(gal_positions), round(float(np.sum(nodes_per_galaxy)), 6))`, guaranteeing immediate cache invalidation whenever the user switches survey catalogs or volume depths.
 
 ---
 
 ## 📊 Visual Diagnostic Output & Graphics
 
-* **Panel 1 (Line-of-Sight Expansion Profile):** Maps the local expansion rate $H_{\text{local}}(s)$ along the sightline from observer ($s=0$) out to the integration boundary, highlighting TRGB/Cepheid benchmark distances.
-* **Panel 2 (Kinematic Decomposition Profile):** Compares accumulated Substrate unspooling $c z_{\text{exp}}(s)$ against the linear baseline ($c z = H_{\text{global}} \cdot d$) and observed velocity $c z_{\text{obs}}$, explicitly marking the derived peculiar velocity vector $v_{\text{pec}}$.
+The module outputs a 3-panel vertical stack of full-sky Mollweide projections rendered in Galactic coordinates (`coord=["G"]`, astronomical orientation `flip="astro"`):
+
+1. **Panel 1 (`plasma`):** Observed directional expansion field $H_{\text{obs}}(\theta, \phi)$ $[\text{km/s/Mpc}]$.
+2. **Panel 2 (`magma`):** Directional correction multiplier $C(\theta, \phi) = H_{\text{obs}} / H_{\text{global}}$.
+3. **Panel 3 (`viridis_r`):** Predicted Euclid & Rubin (LSST) Type Ia supernova distance modulus anomaly $\Delta\mu(\theta, \phi)$ $[\text{mag}]$.
 
 ---
 
@@ -44,36 +75,25 @@ This module performs line-of-sight ray integration across the 3D cosmic web to d
 
 | Metric Key | Unit / Format | Physical Meaning |
 | :--- | :--- | :--- |
-| `Substrate Expansion (cz_exp)` | `km/s` | Path-integrated cosmological expansion velocity along sightline. |
-| `Derived Peculiar Velocity (v_pec)` | `km/s` | Net line-of-sight peculiar motion ($c z_{\text{obs}} - c z_{\text{exp}}$). |
-| `TRGB/Cepheid Benchmark` | `Mpc` | Primary physical distance baseline. |
-| `Linear Hubble Distance` | `Mpc` | Uncorrected naive distance estimate ($c z_{\text{obs}} / H_{\text{global}}$). |
+| `Mean Sky Expansion` | `km/s/Mpc` | Full-sky average of path-integrated expansion $H_{\text{obs}}(\hat{n})$. |
+| `Correction Range` | `x` | Minimum to maximum directional multiplier $C(\hat{n})$ across the sky. |
+| `LSST/Euclid Anomaly Range` | `mag` | Predicted SNe Ia distance modulus residual span $\Delta\mu(\hat{n})$. |
 
-* **CSV Export Schema (`line_of_sight_kinematics_benchmark_comparison.csv`):**
-  * `Galaxy Target`: Target name or celestial coordinate label.
-  * `Environment`: Local cosmic web environment (e.g., Dense Cluster Core, Deep Local Void).
-  * `Observed cz [km/s]`: Total spectroscopic recessional velocity.
-  * `TRGB/Cepheid Benchmark [Mpc]`: Standard candle distance.
-  * `Substrate Expansion cz_exp [km/s]`: Pure unspooling expansion contribution.
-  * `Derived v_pec [km/s]`: Inward infall ($<0$) or outward recession ($>0$).
-  * `Linear Hubble Distance [Mpc]`: Simple $c z / H_{\text{global}}$ distance.
+### CSV Export Schema (`healpix_sky_anisotropy_lookup.csv`)
+
+* `pixel_id`: HEALPix ring-ordered pixel index.
+* `glon_deg`: Galactic longitude $l$ $[0^\circ \dots 360^\circ]$.
+* `glat_deg`: Galactic latitude $b$ $[-90^\circ \dots +90^\circ]$.
+* `H_obs_kmsMpc`: Path-integrated directional expansion rate $[\text{km/s/Mpc}]$.
+* `Correction_Factor_C`: Directional expansion factor $C(\hat{n})$.
+* `Delta_mu_mag`: Predicted distance modulus anomaly $\Delta\mu(\hat{n})$ $[\text{mag}]$.
 
 ---
 
-## ⚡ Performance Benchmarks & Exact Reproduction Notes
+## ⚡ Performance Benchmarks & Catalog Behavioral Notes
 
-### 🔬 Reference Benchmark Calibration
-* **Active Survey Catalog:** `Cosmicflows-4` (Volume Depth $d_{\text{max}} = 150.0\text{ Mpc}$)
-* **Field Smoothing Scale:** $\sigma = 2.0\text{ Mpc}$
-* **Global Vacuum Floor:** $H_{\text{global}} = 67.42\text{ km/s/Mpc}$
-* **Execution Time:** `~0.05s` per line-of-sight ray calculation
-
-### 🎯 Exact Benchmark Targets
-
-| Target Galaxy | Environment | Observed $c z$ [km/s] | TRGB/Cepheid Benchmark [Mpc] | Path Integral $c z_{\text{exp}}$ [km/s] | Derived $v_{\text{pec}}$ [km/s] | Linear Hubble Distance [Mpc] |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **NGC 6946 (Fireworks)** | Local Group Wall | $300.0$ | $7.72$ | $525.4$ | **$-225.4$** | $4.45$ |
-| **NGC 1365 (Fornax)** | Overdense Cluster | $1636.0$ | $17.17$ | $1190.2$ | **$+445.8$** | $24.27$ |
-| **M87 (Virgo Core)** | Dense Cluster Core | $1284.0$ | $16.50$ | $1155.7$ | **$+128.3$** | $19.04$ |
-| **M83 (Southern Pinwheel)** | Filament Core | $513.0$ | $4.90$ | $332.7$ | **$+180.3$** | $7.61$ |
-| **KK246 (Deep Void)** | Deep Local Void | $416.0$ | $7.83$ | $531.0$ | **$-115.0$** | $6.17$ |
+* **Cosmicflows-4 Benchmark ($N = 17,509$, $D_{\text{max}} = 150\text{ Mpc}$, $\sigma = 2.0\text{ Mpc}$, $N_{\text{side}} = 16$):**
+  * **Mean Sky Expansion:** `68.38 km/s/Mpc`
+  * **Directional Multiplier Range ($C$):** `1.0003x` to `1.1194x`
+  * **Distance Modulus Anomaly Range ($\Delta\mu$):** `-0.2449 mag` to `-0.0007 mag`
+* **Headless Execution Time ($N_{\text{side}} = 16$, $d_{\text{max}} = 15\text{ Mpc}$, full Matplotlib render):** `~1.65 s` via batched `cKDTree` evaluation (`get_hlocal_batch`).

@@ -10,12 +10,13 @@ except (ImportError, ModuleNotFoundError):
 
 from .data_loader import (
     get_hlocal_batch,
+    galactic_to_icrs_vecs,
     H_GLOBAL
 )
 
 @st.cache_data(show_spinner=False)
 def _compute_sky_forecast_cached(
-    _tree, _gal_positions, _nodes_per_galaxy,
+    _tree, _gal_positions, _nodes_per_galaxy, catalog_sig,
     nside=32, d_max_mpc=15.0, sigma_smooth_mpc=1.2, h_global=H_GLOBAL, n_steps=40
 ):
     npix = hp.nside2npix(nside)
@@ -26,12 +27,13 @@ def _compute_sky_forecast_cached(
         np.sin(theta_arr) * np.sin(phi_arr),
         np.cos(theta_arr)
     ])
+    pix_vecs_icrs = galactic_to_icrs_vecs(pix_vecs)
 
     s_steps = np.linspace(0.1, d_max_mpc, n_steps)
     h_samples_matrix = np.zeros((npix, n_steps))
 
     for j, s in enumerate(s_steps):
-        pts_at_s = s * pix_vecs
+        pts_at_s = s * pix_vecs_icrs
         h_samples_matrix[:, j] = get_hlocal_batch(
             _tree, _gal_positions, _nodes_per_galaxy, pts_at_s,
             sigma_mpc=sigma_smooth_mpc, h_global=h_global, workers=-1
@@ -48,8 +50,9 @@ def run_anisotropic_sky_forecast(
     tree, gal_positions, nodes_per_galaxy,
     nside=32, d_max_mpc=15.0, sigma_smooth_mpc=1.2, h_global=H_GLOBAL
 ):
+    catalog_sig = (len(gal_positions), round(float(np.sum(nodes_per_galaxy)), 6))
     npix, h_obs_map, C_map, delta_mu_map = _compute_sky_forecast_cached(
-        tree, gal_positions, nodes_per_galaxy,
+        tree, gal_positions, nodes_per_galaxy, catalog_sig,
         nside=nside, d_max_mpc=d_max_mpc, sigma_smooth_mpc=sigma_smooth_mpc, h_global=h_global
     )
 

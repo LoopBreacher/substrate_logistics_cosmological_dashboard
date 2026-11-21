@@ -22,14 +22,14 @@ This module performs line-of-sight ray integration across the 3D cosmic web to d
 ## ⚙️ Architectural & Technical Implementation
 
 * **Primary Function:** `run_line_of_sight_kinematics_analysis(...)`
-* **Core Integrator:** `solve_line_of_sight_kinematics(...)`
+* **Core Integrator:** `solve_line_of_sight_kinematics(...)` (vectorized ray evaluation via `get_hlocal_batch` + `scipy.integrate.cumulative_trapezoid`)
 * **Input Parameters:**
   * `ra_deg`, `dec_deg`: Target sky coordinates in Right Ascension and Declination (ICRS degrees).
   * `cz_obs`: Observed recessional velocity ($c z_{\text{obs}}$ in $\text{km/s}$).
   * `d_known`: Physical benchmark distance from TRGB or Cepheid measurements ($\text{Mpc}$).
   * `tree`: `scipy.spatial.cKDTree` catalog index.
-  * `sigma_mpc`: Gaussian field smoothing scale ($\sigma = 1.8\text{ Mpc}$ default).
-  * `h_global`: Vacuum floor Hubble constant ($H_{\text{global}} = 67.42\text{ km/s/Mpc}$).
+  * `sigma_mpc`: Gaussian field smoothing scale ($\sigma = 1.8\text{ Mpc}$ default; benchmarked at $\sigma = 2.0\text{ Mpc}$ on Cosmicflows-4).
+  * `h_global`: Vacuum floor Hubble constant ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$).
 
 ---
 
@@ -45,9 +45,9 @@ This module performs line-of-sight ray integration across the 3D cosmic web to d
 | Metric Key | Unit / Format | Physical Meaning |
 | :--- | :--- | :--- |
 | `Substrate Expansion (cz_exp)` | `km/s` | Path-integrated cosmological expansion velocity along sightline. |
-| `Derived Peculiar Velocity (v_pec)` | `km/s` | Net line-of-sight peculiar motion ($c z_{\text{obs}} - c z_{\text{exp}}$). |
+| `Derived Peculiar Velocity (v_pec)` | `km/s` | Net line-of-sight peculiar motion ($`c z_{\text{obs}} - c z_{\text{exp}}`$). |
 | `TRGB/Cepheid Benchmark` | `Mpc` | Primary physical distance baseline. |
-| `Linear Hubble Distance` | `Mpc` | Uncorrected naive distance estimate ($c z_{\text{obs}} / H_{\text{global}}$). |
+| `Linear Hubble Distance` | `Mpc` | Uncorrected naive distance estimate ($`c z_{\text{obs}} / H_{\text{global}}`$). |
 
 * **CSV Export Schema (`line_of_sight_kinematics_benchmark_comparison.csv`):**
   * `Galaxy Target`: Target name or celestial coordinate label.
@@ -62,7 +62,7 @@ This module performs line-of-sight ray integration across the 3D cosmic web to d
 
 ## ⚡ Performance Benchmarks & Catalog Behavioral Notes
 
-* **Execution Speed:** `~0.05s` per line-of-sight ray calculation across Local Volume catalogs ($N=3,000$ to $70,000$ galaxies).
+* **Execution Speed:** `~0.16s` full multi-target benchmark + Matplotlib render across `Cosmicflows-4` (`N=17,509`, $\sigma = 2.0\text{ Mpc}$, $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$).
 * **Environment Sensitivity:**
-  * **Inward Cluster Infall ($v_{\text{pec}} < 0$):** In dense environments like NGC 6946 ($v_{\text{pec}} = -220.4\text{ km/s}$), line-of-sight unspooling exceeds observed velocity due to local gravitational deceleration.
-  * **Outward Recessional Flow ($v_{\text{pec}} > 0$):** Target galaxies embedded in cluster outward streams (e.g., NGC 1365 in Fornax, $v_{\text{pec}} = +478.5\text{ km/s}$) exhibit positive peculiar flow vectors.
+  * **Inward Cluster Infall ($v_{\text{pec}} < 0$):** In dense environments like NGC 6946 ($v_{\text{pec}} = -225.4\text{ km/s}$), line-of-sight unspooling exceeds observed velocity due to local gravitational deceleration.
+  * **Outward Recessional Flow ($v_{\text{pec}} > 0$):** Target galaxies embedded in cluster outward streams (e.g., NGC 1365 in Fornax, $v_{\text{pec}} = +445.6\text{ km/s}$) exhibit positive peculiar flow vectors.

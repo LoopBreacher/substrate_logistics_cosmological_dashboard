@@ -15,9 +15,9 @@ The local Hubble expansion rate $H_{\text{local}}(\vec{r})$ is determined by the
 $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \Theta(\rho_N(\vec{r}) - \rho_{\text{threshold}}) \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_N(\vec{r})}{3}}$$
 
 Where:
-* $H_{\text{global}} = 67.42\text{ km/s/Mpc}$ is the global hardware vacuum floor.
-* $\mathcal{K}_\Omega = 1.11587 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant.
-* $\Theta$ is the Heaviside step function enforcing the activation threshold ($\rho_{\text{threshold}} = 4.0\text{ nodes/m}^3$).
+* $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$ is the global hardware vacuum floor.
+* $\mathcal{K}_\Omega = 1.11592 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant.
+* $\Theta$ enforces the Garbage Collection compilation threshold ($\rho_{\text{threshold}} = 4.0\text{ nodes/m}^3$), which applies at the stellar/galactic phase level prior to Mpc-scale Gaussian smoothing.
 
 ### 2. Inflow Peculiar Velocity Vector
 Galactic motion is directed toward higher spatial processing throughput. The peculiar inflow vector $\vec{v}_{\text{inflow}}(\vec{r})$ is proportional to the spatial gradient of $H_{\text{local}}(\vec{r})$:
@@ -38,8 +38,8 @@ In deep void cores where matter density vanishes ($\rho_N \to 0$), the local uns
 ## ⚙️ Architectural & Technical Implementation
 
 ### Primary Functions
-1. `compute_line_of_sight_peculiar_velocity(...)`: Evaluates 3D finite differences ($dr = 0.2\text{ Mpc}$) around a coordinate point to compute line-of-sight velocity components.
-2. `compute_bulk_flow_field(...)`: Generates a 2D grid slice on the galactic plane ($Z=0$), evaluating $H_{\text{local}}$ and spatial derivatives $\frac{\partial H}{\partial x}$, $\frac{\partial H}{\partial y}$ using `numpy.gradient`.
+1. `compute_line_of_sight_peculiar_velocity(...)`: Stacks all 6 central finite-difference stencil points ($\pm dr$ along $X, Y, Z$ with $dr = 0.2\text{ Mpc}$) into a single batched `get_hlocal_batch(...)` query to compute line-of-sight velocity components.
+2. `compute_bulk_flow_field(...)`: Evaluates the entire $N \times N$ galactic-plane mesh ($Z=0$) in one vectorized `get_hlocal_batch(...)` call and computes spatial derivatives $\frac{\partial H}{\partial x}$, $\frac{\partial H}{\partial y}$ using `numpy.gradient`.
 3. `run_bulk_flow_analysis(...)`: Main Streamlit UI driver function. Assembles 2D contour maps, vector quivers, galaxy overlays, KPI metrics, and export datasets.
 
 ### Algorithmic Pipeline

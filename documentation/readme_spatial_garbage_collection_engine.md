@@ -2,7 +2,7 @@
 
 ## 🌟 Executive Summary
 
-The **Spatial Address Garbage Collection Engine** reclassifies gravitational attraction as a zero-energy background address garbage collection protocol ($E = 0$) executed directly by the spatial grid hardware. Local Informational Loads ($N = M / m_p$) continuously purge un-driven, empty spatial coordinate voxels ($V_{\text{node}} = \bar{\lambda}_p^3 \approx 9.301 \times 10^{-48}\text{ m}^3$) from the metric index at rate $g_\Omega$, pulling coordinate pointers inward at $v_{\text{inflow}} = \sqrt{2 g_\Omega R}$. This memory management protocol prevents local combinatorial address overflows, eliminating both dark matter halos and the graviton particle category error.
+The **Spatial Address Garbage Collection Engine** reclassifies gravitational attraction as a zero-energy background address garbage collection protocol ($E = 0$) executed directly by the spatial grid hardware. Local Informational Loads ($N = M / m_p$) continuously purge un-driven, empty spatial coordinate voxels ($V_{\text{node}} = \bar{\lambda}_p^3 \approx 9.3019 \times 10^{-48}\text{ m}^3$) from the metric index at rate $g_\Omega$, pulling coordinate pointers inward at $v_{\text{inflow}} = \sqrt{2 g_\Omega R}$. This memory management protocol prevents local combinatorial address overflows, eliminating both dark matter halos and the graviton particle category error.
 
 ---
 
@@ -21,7 +21,7 @@ $$g_\Omega(r) = \frac{N \mathcal{K}_\Omega}{r^2}$$
 
 
 
-*(where $\mathcal{K}_\Omega = 1.11587 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant)*
+*(where $\mathcal{K}_\Omega = 1.11592 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant)*
 * **Coordinate Address Inflow & Escape Velocity ($v_{\text{inflow}} = v_{\text{escape}}$):**
 
 $$v_{\text{inflow}}(r) = \sqrt{2 g_\Omega(r) r} = \sqrt{\frac{2 N \mathcal{K}_\Omega}{r}}$$
@@ -89,9 +89,9 @@ $$\text{Capacity Used} = \min\left(100, \frac{v_{\text{inflow}}}{c} \times 100\r
 | --- | --- | --- |
 | `Integer Node Load (N)` | Scientific (`nodes`) | Exact integer count of proton mass units $N = M / m_p$. |
 | `Surface Acceleration (g_Ω)` | `m/s²` | Metric address deletion acceleration at physical surface. |
-| `Escape Velocity (v_escape)` | `km/s` ($c$ ratio) | Inward spatial address freefall velocity $v_{\text{inflow}} = \sqrt{2 g_\Omega R}$. |
-| `Low-Orbit Speed (v_orbit)` | `km/s` | Circular orbit bypass speed $v_{\text{orbit}} = v_{\text{inflow}} / \sqrt{2}$. |
-| `Surface Pixel Purge Rate` | `pixels/s` | Discrete sub-node voxels ($V_{\text{node}} = 9.301 \times 10^{-48}\text{ m}^3$) deleted per second. |
+| `Escape Velocity (v_escape)` | `km/s` ($c$ ratio) | Inward spatial address freefall velocity $`v_{\text{inflow}} = \sqrt{2 g_\Omega R}`$. |
+| `Low-Orbit Speed (v_orbit)` | `km/s` | Circular orbit bypass speed $`v_{\text{orbit}} = v_{\text{inflow}} / \sqrt{2}`$. |
+| `Surface Pixel Purge Rate` | `pixels/s` | Discrete sub-node voxels ($V_{\text{node}} = 9.3019 \times 10^{-48}\text{ m}^3$) deleted per second. |
 | `Kernel Lock Safety Margin` | `%` | Processing headroom remaining $\max(0, 1.0 - v/c) \times 100\%$. |
 
 * **CSV Export Schema (`spatial_garbage_collection_profile.csv`):**
@@ -113,9 +113,9 @@ $$\text{Capacity Used} = \min\left(100, \frac{v_{\text{inflow}}}{c} \times 100\r
 * **Execution Benchmarks (Analytical 1D Solver):**
 * **Earth ($M = 5.972 \times 10^{24}\text{ kg}$):** `< 0.4 ms`
 * **Sun ($M = 1.988 \times 10^{30}\text{ kg}$):** `< 0.4 ms`
-* **Cygnus X-1 ($21.2 M_\odot$ Stellar SMBH):** `< 0.3 ms`
-* **Sagittarius A* ($4.3 \times 10^6 M_\odot$ Galactic Center SMBH):** `< 0.3 ms` ($R_{\text{lock}} = 1.2693 \times 10^{10}\text{ m}$)
-* **M87* ($6.5 \times 10^9 M_\odot$ Supermassive SMBH):** `< 0.3 ms` ($R_{\text{lock}} = 1.9188 \times 10^{13}\text{ m} \approx 128.26\text{ AU}$)
+* **Cygnus X-1 ($21.2 M_\odot$ Stellar SMBH):** `< 0.3 ms` ($R_{\text{lock}} = 6.2585 \times 10^{4}\text{ m}$)
+* **Sagittarius A* ($4.3 \times 10^6 M_\odot$ Galactic Center SMBH):** `< 0.3 ms` ($R_{\text{lock}} = 1.2694 \times 10^{10}\text{ m}$)
+* **M87* ($6.5 \times 10^9 M_\odot$ Supermassive SMBH):** `< 0.3 ms` ($R_{\text{lock}} = 1.9189 \times 10^{13}\text{ m} \approx 128.27\text{ AU}$)
 
 
 * **Behavioral Regimes:**

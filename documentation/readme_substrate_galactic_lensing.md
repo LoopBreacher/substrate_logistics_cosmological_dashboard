@@ -103,8 +103,8 @@ $$b_{1:1,\text{total}} = \sqrt{\frac{M_{\text{baryon}} \mathcal{K}_\Omega M_\odo
 | --- | --- | --- |
 | `Target Baseline Acceleration (a_Ω)` | `m/s²` (e.g., `1.043e-10 m/s²`) | Dynamic acceleration baseline derived from local expansion $H_{\text{local}}$. |
 | `Local Expansion Rate (H_local)` | `km/s/Mpc` | Local unspooling rate at target 3D spatial position. |
-| `1:1 Enclosed Mass Radius (b_cross)` | `kpc` | Impact parameter where $M_{\text{DM,inferred}} = M_{\text{baryon,enclosed}}$ ($\theta_{\text{baryon}} = \theta_{\text{scaffold}}$). |
-| `1:1 Total Mass Horizon (b_1:1)` | `kpc` | Impact parameter where $M_{\text{DM,inferred}} = M_{\text{baryon,total}}$. |
+| `1:1 Enclosed Mass Radius (b_cross)` | `kpc` | Impact parameter where $`M_{\text{DM,inferred}} = M_{\text{baryon,enclosed}}`$ ($`\theta_{\text{baryon}} = \theta_{\text{scaffold}}`$). |
+| `1:1 Total Mass Horizon (b_1:1)` | `kpc` | Impact parameter where $`M_{\text{DM,inferred}} = M_{\text{baryon,total}}`$. |
 | `Deflection @ Crossover` | `arcsec` | Optical light bending angle evaluated at $b_{\text{cross}}$. |
 | `Total Dark/Light @ b_cross` | Ratio (e.g., `0.43 : 1`) | Inferred dark mass relative to total visible baryonic mass at $b_{\text{cross}}$. |
 

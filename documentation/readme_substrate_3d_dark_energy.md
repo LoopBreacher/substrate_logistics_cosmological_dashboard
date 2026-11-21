@@ -8,7 +8,7 @@ The `substrate_3d_dark_energy` module computes the spatial equation-of-state fie
 
 ## 🔬 Physical Foundation & First Principles
 
-In Substrate Logistics, the vacuum unspools at a universal global baseline rate ($H_{\text{global}} = 67.42\text{ km/s/Mpc}$) in uncompiled cosmic voids ($\rho_N < 4\text{ nodes/m}^3$). Where matter consolidates into dense filaments and galaxy cores ($\Gamma$-knots), high address deletion rates generate recycled memory pointers, locally accelerating spatial unspooling.
+In Substrate Logistics, the vacuum unspools at a universal global baseline rate ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$) in uncompiled cosmic voids ($\rho_N < 4\text{ nodes/m}^3$). Where matter consolidates into dense filaments and galaxy cores ($\Gamma$-knots), high address deletion rates generate recycled memory pointers, locally accelerating spatial unspooling.
 
 ### 1. Local Equation of State & Boost Shift
 
@@ -81,7 +81,7 @@ $$w_{\text{LOS}}(D) = -1.0 + \frac{1}{D \cdot H_{\text{global}}} \int_0^D \Delta
 * `sigma_mpc`: Gaussian field smoothing scale $\sigma$ [Mpc].
 
 
-* `h_global`: Baseline global expansion rate ($67.42\text{ km/s/Mpc}$).
+* `h_global`: Baseline global expansion rate ($67.4275\text{ km/s/Mpc}$).
 
 
 
@@ -99,10 +99,10 @@ $$w_{\text{LOS}}(D) = -1.0 + \frac{1}{D \cdot H_{\text{global}}} \int_0^D \Delta
 4. Batch-query `get_hlocal_batch()` to retrieve point-wise $H_{\text{local}}(D)$ and derive point-wise $w_0(D)$ and $w_a(D)$.
 
 
-5. Numerically integrate cumulative expansion boost to compute $w_{\text{LOS}}(D)$ and $w_{a,\text{LOS}}(D)$.
+5. Numerically integrate cumulative expansion boost using `scipy.integrate.cumulative_trapezoid` (`delta_h_ray[0]*d_steps[0] + cumulative_trapezoid(...)`) to compute $w_{\text{LOS}}(D)$ and $w_{a,\text{LOS}}(D)$.
 
 
-6. Compute 2D Cartesian grid slice $w_0(X, Y, Z=0)$ centered dynamically on target bounds.
+6. Compute 2D Cartesian grid slice $w_0(X, Y, Z=0)$ centered dynamically on target bounds in the ICRS catalog frame (`plt.style.context('dark_background')`).
 
 
 7. Assemble symmetrical $2 \times 2$ 4-panel diagnostic figure, KPI summary metrics, and output DataFrame.
@@ -122,7 +122,7 @@ $$w_{\text{LOS}}(D) = -1.0 + \frac{1}{D \cdot H_{\text{global}}} \int_0^D \Delta
 
 * **Panel 2 (Top Right: Point-Wise Sightline Dynamics $H_{\text{local}}(D)$ & $w_0(D)$):**
   * Dual y-axis plot tracking local unspooling rate $H_{\text{local}}(D)$ (left axis, cyan solid curve) against point-wise equation of state $w_0(D)$ (right axis, magenta dash-dotted curve).
-  * Overlays global expansion baseline $H_{\text{global}} = 67.42\text{ km/s/Mpc}$ (dashed gray line).
+  * Overlays global expansion baseline $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$ (dashed gray line).
   * Directly illustrates point-wise coupling: density filament crossings generate simultaneous spikes in $H_{\text{local}}$ and $w_0$.
 
 * **Panel 3 (Bottom Left: Path-Integrated Cumulative $w_{\text{LOS}}(D)$ Profile):**
@@ -130,7 +130,7 @@ $$w_{\text{LOS}}(D) = -1.0 + \frac{1}{D \cdot H_{\text{global}}} \int_0^D \Delta
   * Demonstrates path relaxation across alternating void and filament structures relative to the void floor ($w = -1.0$).
 
 * **Panel 4 (Bottom Right: 2D Equatorial Slice of 3D Dark Energy Field $w_0(X, Y)$):**
-  * Renders a 2D Cartesian cross-sectional slice ($Z = 0\text{ Mpc}$) through the full 3D scalar field $w_0(X, Y, Z)$ using the `magma` colormap with dynamic slice extent ($\pm \text{slice\_bounds}$).
+  * Renders a 2D Cartesian cross-sectional slice ($Z = 0\text{ Mpc}$) in ICRS Cartesian $(X, Y)$ coordinates through the full 3D scalar field $w_0(X, Y, Z)$ using the `magma` colormap with dynamic slice extent ($\pm \text{slice\_bounds}$).
   * Overlays catalog galaxy positions within the slice bounds (blue points) and marks query target location (green star).
 
 ---
@@ -138,22 +138,12 @@ $$w_{\text{LOS}}(D) = -1.0 + \frac{1}{D \cdot H_{\text{global}}} \int_0^D \Delta
 ## 🎯 KPI Metrics & Export Deliverables
 
 | Metric Key | Unit / Format | Physical Meaning |
-| --- | --- | --- |
-| `Target Local w0` | Float (`.4f`) | Present-day localized equation of state $w_0$ at target position.
-
- |
-| `Target Local wa` | Float (`.4f`) | Dynamic CPL derivative $w_a$ at target position.
-
- |
-| `Local Boost Shift` | Float (`.4f`) | Relative unspooling boost shift $\Delta H / H_{\text{global}}$.
-
- |
-| `Structural Invariant (w0 + wa)` | Float (`.4f`) | Verified sum invariant $w_0 + w_a$ (strictly equal to $-1.0000$).
-
- |
-| `Sightline Mean w_LOS` | Float (`.4f`) | Mean path-integrated equation of state across sightline depth.
-
- |
+| :--- | :--- | :--- |
+| `Target Local w0` | Float (`.4f`) | Present-day localized equation of state $w_0$ at target position. |
+| `Target Local wa` | Float (`.4f`) | Dynamic CPL derivative $w_a$ at target position. |
+| `Local Boost Shift` | Float (`.4f`) | Relative unspooling boost shift $\Delta H / H_{\text{global}}$. |
+| `Structural Invariant (w0 + wa)` | Float (`.4f`) | Verified sum invariant $`w_0 + w_a`$ (strictly equal to $-1.0000$). |
+| `Sightline Mean w_LOS` | Float (`.4f`) | Mean path-integrated equation of state across sightline depth. |
 
 ### CSV Export Schema (`3d_dark_energy_equation_of_state.csv`)
 

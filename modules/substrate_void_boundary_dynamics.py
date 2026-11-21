@@ -21,7 +21,8 @@ from .data_loader import (
     K_OMEGA,
     MPC_TO_METER,
     UNIT_CONV,
-    H_GLOBAL
+    H_GLOBAL,
+    get_compiled_node_density_batch
 )
 
 # ==========================================
@@ -73,20 +74,19 @@ def run_void_boundary_analysis(
     sheet_dir = ray_dir / np.linalg.norm(ray_dir)
 
     r_pts = np.linspace(0.0, max_r_mpc, n_pts)
-    h_prof = np.zeros(n_pts)
-    rho_macro_prof = np.zeros(n_pts)
-    rho_filament_prof = np.zeros(n_pts)
+    ray_pts = void_center_mpc[np.newaxis, :] + np.outer(r_pts, sheet_dir)
 
-    for i, r in enumerate(r_pts):
-        p = void_center_mpc + r * sheet_dir
-        r_m, r_f = get_dual_scale_density(p, tree, gal_positions, nodes_per_galaxy)
+    rho_macro_prof = get_compiled_node_density_batch(
+        tree, gal_positions, nodes_per_galaxy, ray_pts, sigma_mpc=1.5
+    )
+    rho_filament_prof = get_compiled_node_density_batch(
+        tree, gal_positions, nodes_per_galaxy, ray_pts, sigma_mpc=0.5
+    )
 
-        # Unspooling boost driven directly by compiled intergalactic matter density
-        dH_unspool = np.sqrt((8.0 * np.pi * K_OMEGA * r_m) / 3.0) / UNIT_CONV if r_m > 0 else 0.0
-
-        h_prof[i] = h_global + dH_unspool
-        rho_macro_prof[i] = r_m
-        rho_filament_prof[i] = r_f
+    # Unspooling boost driven directly by compiled intergalactic matter density
+    coeff = np.sqrt((8.0 * np.pi * K_OMEGA) / 3.0) / UNIT_CONV
+    dH_unspool = np.where(rho_macro_prof > 0.0, np.sqrt(np.maximum(rho_macro_prof, 0.0)) * coeff, 0.0)
+    h_prof = h_global + dH_unspool
 
     v_rec = r_pts * h_prof
     v_shear = np.gradient(v_rec, r_pts)

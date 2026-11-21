@@ -31,10 +31,11 @@ Standard cosmology ($\Lambda\text{CDM}$) requires $68\%$ Dark Energy ($\Omega_\L
 
 ## ⚙️ Architectural & Technical Implementation
 
-* **Primary Function:** `run_hubble_fitter_analysis(tree=None, gal_positions=None, nodes_per_galaxy=None, sigma_mpc=1.8, h_global=H_GLOBAL)`
+* **Primary Function:** `run_hubble_fitter_analysis(tree=None, gal_positions=None, nodes_per_galaxy=None, sigma_mpc=1.8, h_global=H_GLOBAL, om=0.315)`
 * **Input Parameters:**
-  * `h_global`: Global vacuum floor expansion rate ($67.42\text{ km/s/Mpc}$).
-  * *Note:* This module operates standalone on high-precision SNe Ia calibrator and Pantheon+ benchmark samples, independent of the 3D spatial catalog tree.
+  * `h_global`: Closed-form global vacuum floor expansion rate ($67.4275\text{ km/s/Mpc}$).
+  * `om`: Matter density partition parameter passed to `mu_substrate(...)` (default `0.315`, or `OMEGA_M_GLOBAL = 0.2661` from 120-cell partition).
+  * *Note:* Both `mu_lcdm(...)` and `mu_substrate(...)` evaluate exact $c = C_{\text{light}} / 1000.0$ integrated from $z = 0.0$ across $151$ grid points. This module operates standalone on high-precision SNe Ia calibrator and Pantheon+ benchmark samples, independent of the 3D spatial catalog tree.
 * **Algorithmic Pipeline:**
   1. **Step 1:** Process 8 local calibrator host galaxies (e.g., M101, M82, NGC 1365) to compute calibrated absolute magnitudes $M_B$ and peculiar velocities $v_{\text{pec}}$ against TRGB/Cepheid distances.
   2. **Step 2:** Integrate 9 high-redshift Pantheon+ Hubble flow SNe Ia ($z = 0.025\text{--}0.780$) under standard $\Lambda\text{CDM}$ ($\Omega_\Lambda = 0.685$) and Substrate Logistics ($\Omega_\Lambda = 0.00$ + memory drag).

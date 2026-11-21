@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from .data_loader import (
-    get_hlocal,
+    get_hlocal_batch,
     H_GLOBAL
 )
 
@@ -20,22 +20,20 @@ def compute_line_of_sight_peculiar_velocity(
     Evaluates 3D spatial gradient +grad H_local at pos_mpc to compute 
     the inward peculiar velocity vector along the line-of-sight unit vector.
     """
-    r_norm = np.linalg.norm(pos_mpc)
+    pos_arr = np.asarray(pos_mpc, dtype=float)
+    r_norm = np.linalg.norm(pos_arr)
     if r_norm == 0:
         return 0.0
-    los_dir = pos_mpc / r_norm
-    
-    grad_H = np.zeros(3)
-    for i in range(3):
-        pos_plus = np.array(pos_mpc, dtype=float)
-        pos_minus = np.array(pos_mpc, dtype=float)
-        pos_plus[i] += dr
-        pos_minus[i] -= dr
-        
-        h_plus = get_hlocal(tree, gal_positions, nodes_per_galaxy, pos_plus, sigma_mpc=sigma_mpc, h_global=h_global)
-        h_minus = get_hlocal(tree, gal_positions, nodes_per_galaxy, pos_minus, sigma_mpc=sigma_mpc, h_global=h_global)
-        grad_H[i] = (h_plus - h_minus) / (2.0 * dr)
-        
+    los_dir = pos_arr / r_norm
+
+    offsets = np.vstack([np.eye(3) * dr, -np.eye(3) * dr])
+    stencil_pts = pos_arr[np.newaxis, :] + offsets
+    h_stencil = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, stencil_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
+    grad_H = (h_stencil[:3] - h_stencil[3:]) / (2.0 * dr)
+
     v_vec = alpha_scale * grad_H
     v_pec_los = float(np.dot(v_vec, los_dir))
     return v_pec_los
@@ -54,11 +52,15 @@ def compute_bulk_flow_field(
     y_range = np.linspace(-spatial_bounds, spatial_bounds, grid_size)
     X_grid, Y_grid = np.meshgrid(x_range, y_range)
 
-    H_grid = np.zeros((grid_size, grid_size))
-    for i in range(grid_size):
-        for j in range(grid_size):
-            pos = np.array([X_grid[i, j], Y_grid[i, j], 0.0])
-            H_grid[i, j] = get_hlocal(tree, gal_positions, nodes_per_galaxy, pos, sigma_mpc=sigma_mpc, h_global=h_global)
+    grid_pts = np.column_stack([
+        X_grid.ravel(),
+        Y_grid.ravel(),
+        np.zeros(X_grid.size, dtype=float)
+    ])
+    H_grid = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, grid_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    ).reshape(grid_size, grid_size)
 
     dx = x_range[1] - x_range[0]
     dH_dy, dH_dx = np.gradient(H_grid, dx)

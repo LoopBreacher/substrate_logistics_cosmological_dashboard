@@ -14,7 +14,8 @@ except (ImportError, ModuleNotFoundError):
 from .data_loader import (
     C_LIGHT,
     H_GLOBAL,
-    get_hlocal_batch
+    get_hlocal_batch,
+    galactic_to_icrs_vecs
 )
 
 T_CMB_0 = 2.7255  # Kelvin
@@ -22,13 +23,13 @@ C_LIGHT_KM_S = C_LIGHT / 1000.0  # 299792.458 km/s
 
 @st.cache_data(show_spinner=False)
 def _compute_cmb_dipole_cached(
-    _tree, _gal_positions, _nodes_per_galaxy,
+    _tree, _gal_positions, _nodes_per_galaxy, catalog_sig,
     nside=32, d_max_mpc=35.0, sigma_mpc=2.0, h_global=H_GLOBAL,
     v_pec_km_s=369.0, l_kin_deg=264.0, b_kin_deg=48.0, n_steps=35
 ):
     npix = hp.nside2npix(nside)
     
-    # Fully vectorized sky pixel unit vectors (npix, 3)
+    # Fully vectorized Galactic sky pixel unit vectors (npix, 3)
     pix_indices = np.arange(npix)
     theta_arr, phi_arr = hp.pix2ang(nside, pix_indices)
     pix_vecs = np.column_stack([
@@ -36,19 +37,20 @@ def _compute_cmb_dipole_cached(
         np.sin(theta_arr) * np.sin(phi_arr),
         np.cos(theta_arr)
     ])
+    pix_vecs_icrs = galactic_to_icrs_vecs(pix_vecs)
 
-    # 1. Kinematic Doppler Component
+    # 1. Kinematic Doppler Component (Galactic frame)
     kin_coord = SkyCoord(l=l_kin_deg*u.deg, b=b_kin_deg*u.deg, frame='galactic')
     v_kin_vec = v_pec_km_s * kin_coord.cartesian.get_xyz().value
     v_proj = np.dot(pix_vecs, v_kin_vec)
     delta_T_kin_mK = T_CMB_0 * (v_proj / C_LIGHT_KM_S) * 1000.0
 
-    # 2. Batch Ray Tracing
+    # 2. Batch Ray Tracing against ICRS catalog positions
     s_steps = np.linspace(0.1, d_max_mpc, n_steps)
     h_samples_matrix = np.zeros((npix, n_steps))
 
     for j, s in enumerate(s_steps):
-        pts_at_s = s * pix_vecs
+        pts_at_s = s * pix_vecs_icrs
         sigma_adaptive = sigma_mpc * np.sqrt(1.0 + s / 10.0)
         
         h_samples_matrix[:, j] = get_hlocal_batch(
@@ -93,8 +95,9 @@ def run_cmb_dipole_analysis(
     nside=32, d_max_mpc=35.0, sigma_mpc=2.0, h_global=H_GLOBAL,
     v_pec_km_s=369.0, l_kin_deg=264.0, b_kin_deg=48.0
 ):
+    catalog_sig = (len(gal_positions), round(float(np.sum(nodes_per_galaxy)), 6))
     res = _compute_cmb_dipole_cached(
-        tree, gal_positions, nodes_per_galaxy,
+        tree, gal_positions, nodes_per_galaxy, catalog_sig,
         nside=nside, d_max_mpc=d_max_mpc, sigma_mpc=sigma_mpc, h_global=h_global,
         v_pec_km_s=v_pec_km_s, l_kin_deg=l_kin_deg, b_kin_deg=b_kin_deg
     )

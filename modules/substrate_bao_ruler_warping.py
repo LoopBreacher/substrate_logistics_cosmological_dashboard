@@ -5,7 +5,7 @@ from astropy.coordinates import SkyCoord
 import astropy.units as u
 
 from .data_loader import (
-    get_hlocal,
+    get_hlocal_batch,
     R_BAO_MPC,
     H_GLOBAL
 )
@@ -20,17 +20,18 @@ def calculate_bao_warping(
 ):
     """
     Computes path-integrated expansion H_eff and Alcock-Paczynski 
-    distortion factors integrated across the physical BAO sound horizon scale (default 149.21 Mpc).
+    distortion factors integrated across the physical BAO sound horizon scale (default 149.25 Mpc).
     """
     coord = SkyCoord(ra=ra_deg*u.deg, dec=dec_deg*u.deg, frame='icrs')
     cart_dir = coord.cartesian.get_xyz().value
     cart_dir = cart_dir / np.linalg.norm(cart_dir)
 
     s_steps = np.linspace(0.1, path_depth_mpc, n_steps)
-    h_samples = [
-        get_hlocal(tree, gal_positions, nodes_per_galaxy, s * cart_dir, sigma_mpc=sigma_mpc, h_global=h_global)
-        for s in s_steps
-    ]
+    ray_pts = np.outer(s_steps, cart_dir)
+    h_samples = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, ray_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
     h_eff = float(np.mean(h_samples))
 
     C_factor = h_eff / h_global
@@ -63,13 +64,37 @@ def run_bao_warping_analysis(
         {"name": "Southern Local Void",    "ra": 280.0, "dec": -20.0, "env": "Deep Cosmic Void Floor"},
     ]
 
+    n_steps = 120
+    s_steps = np.linspace(0.1, path_depth_mpc, n_steps)
+
+    # Batched evaluation for all 6 target sightlines
+    env_coords = SkyCoord(
+        ra=[t["ra"] for t in target_environments] * u.deg,
+        dec=[t["dec"] for t in target_environments] * u.deg,
+        frame='icrs'
+    )
+    env_dirs = env_coords.cartesian.get_xyz().value.T
+    env_dirs = env_dirs / np.linalg.norm(env_dirs, axis=1, keepdims=True)
+    env_ray_pts = (env_dirs[:, np.newaxis, :] * s_steps[np.newaxis, :, np.newaxis]).reshape(-1, 3)
+
+    h_env_batch = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, env_ray_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    ).reshape(len(target_environments), n_steps)
+    h_eff_env = np.mean(h_env_batch, axis=1)
+
     results = []
-    for target in target_environments:
-        h_obs, C_fac, a_par, a_perp, F_AP, r_par, r_perp = calculate_bao_warping(
-            target["ra"], target["dec"],
-            tree, gal_positions, nodes_per_galaxy,
-            path_depth_mpc=path_depth_mpc, sigma_mpc=sigma_mpc, h_global=h_global
-        )
+    env_lookup = {}
+    for idx_t, target in enumerate(target_environments):
+        h_obs = float(h_eff_env[idx_t])
+        C_fac = h_obs / h_global
+        a_par = 1.0 / C_fac
+        a_perp = np.sqrt(C_fac)
+        F_AP = a_perp / a_par
+        r_par = R_BAO_MPC * a_par
+        r_perp = R_BAO_MPC * a_perp
+
+        env_lookup[target["name"]] = (F_AP, r_par, r_perp)
         results.append({
             "Environment": target["name"],
             "Target Sky Region": target["env"],
@@ -95,20 +120,13 @@ def run_bao_warping_analysis(
     y_ideal = R_BAO_MPC * np.sin(theta_grid)
     ax1.plot(x_ideal, y_ideal, color='#94a3b8', linestyle=':', linewidth=2.0, label=f'Isotropic Baseline ($r_s = {R_BAO_MPC:.1f}$ Mpc)')
 
-    # Representative Filament Shell
-    _, _, _, _, f_ap_fil, r_par_fil, r_perp_fil = calculate_bao_warping(
-        201.0, -29.8, tree, gal_positions, nodes_per_galaxy,
-        path_depth_mpc=path_depth_mpc, sigma_mpc=sigma_mpc, h_global=h_global
-    )
+    # Reuse already-computed Representative Filament & Void Floor Shells
+    f_ap_fil, r_par_fil, r_perp_fil = env_lookup["Centaurus Filament Peak"]
     x_fil = r_perp_fil * np.cos(theta_grid)
     y_fil = r_par_fil * np.sin(theta_grid)
     ax1.plot(x_fil, y_fil, color='#ef4444', linewidth=2.5, label=f'Filament Warped ($F_{{\\mathrm{{AP}}}} = {f_ap_fil:.3f}$)')
 
-    # Representative Void Floor Shell
-    _, _, _, _, f_ap_void, r_par_void, r_perp_void = calculate_bao_warping(
-        280.0, -20.0, tree, gal_positions, nodes_per_galaxy,
-        path_depth_mpc=path_depth_mpc, sigma_mpc=sigma_mpc, h_global=h_global
-    )
+    f_ap_void, r_par_void, r_perp_void = env_lookup["Southern Local Void"]
     x_void = r_perp_void * np.cos(theta_grid)
     y_void = r_par_void * np.sin(theta_grid)
     ax1.plot(x_void, y_void, color='#38bdf8', linewidth=2.2, linestyle='--', label=f'Void Floor ($F_{{\\mathrm{{AP}}}} = {f_ap_void:.3f}$)')
@@ -121,15 +139,19 @@ def run_bao_warping_analysis(
     ax1.grid(True, alpha=0.2, linestyle=':')
     ax1.legend(loc='lower right', facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0')
 
-    # Panel 2: Alcock-Paczynski Distortion Parameter Scan
+    # Panel 2: Batched Alcock-Paczynski Distortion Parameter Scan (60 directions)
     ra_scan = np.linspace(0, 360, 60)
-    f_ap_scan = [
-        calculate_bao_warping(
-            ra, dec_scan_deg, tree, gal_positions, nodes_per_galaxy,
-            path_depth_mpc=path_depth_mpc, sigma_mpc=sigma_mpc, h_global=h_global
-        )[4]
-        for ra in ra_scan
-    ]
+    scan_coords = SkyCoord(ra=ra_scan * u.deg, dec=np.full_like(ra_scan, dec_scan_deg) * u.deg, frame='icrs')
+    scan_dirs = scan_coords.cartesian.get_xyz().value.T
+    scan_dirs = scan_dirs / np.linalg.norm(scan_dirs, axis=1, keepdims=True)
+    scan_ray_pts = (scan_dirs[:, np.newaxis, :] * s_steps[np.newaxis, :, np.newaxis]).reshape(-1, 3)
+
+    h_scan_batch = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, scan_ray_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    ).reshape(len(ra_scan), n_steps)
+    h_eff_scan = np.mean(h_scan_batch, axis=1)
+    f_ap_scan = (h_eff_scan / h_global) ** 1.5
 
     ax2.plot(ra_scan, f_ap_scan, color='#a855f7', linewidth=2.5, label=f'Alcock-Paczynski Factor $F_\\mathrm{{AP}}(\\theta, \\delta={dec_scan_deg:.0f}^\\circ)$')
     ax2.axhline(1.0, color='#94a3b8', linestyle=':', label=r'Isotropic Baseline ($F_{\mathrm{AP}} = 1.0$)')

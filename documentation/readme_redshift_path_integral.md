@@ -11,7 +11,7 @@ The `redshift_path_integral` module computes first-principles line-of-sight path
 
   $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \sqrt{\frac{8\pi \mathcal{K}_\Omega \rho_N(\vec{r})}{3}}$$
 
-  where $H_{\text{global}} = 67.42\text{ km/s/Mpc}$ represents the fundamental Planck vacuum floor, $\rho_N(\vec{r})$ is the 3D compiled proton node density ($\text{nodes/m}^3$), and $\mathcal{K}_\Omega = 1.11587 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant.
+  where $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$ represents the fundamental closed-form vacuum floor, $\rho_N(\vec{r})$ is the 3D compiled proton node density ($\text{nodes/m}^3$), and $\mathcal{K}_\Omega = 1.11592 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant.
 
 * **Line-of-Sight Redshift Accumulation Integral:**
   $$cz(d, \hat{n}) = \int_0^d H_{\text{local}}(s \hat{n}) \, ds$$
@@ -38,20 +38,20 @@ The `redshift_path_integral` module computes first-principles line-of-sight path
   * `nodes_per_galaxy` (*np.ndarray*): Integer proton node counts ($N = M / m_p$).
   * `max_dist_mpc` (*float*): Maximum ray-tracing depth limit in Mpc ($10.0\text{--}200.0\text{ Mpc}$).
   * `sigma_mpc` (*float*): Gaussian kernel field smoothing scale $\sigma$ ($0.5\text{--}5.0\text{ Mpc}$).
-  * `h_global` (*float*): Vacuum floor expansion rate ($67.42\text{ km/s/Mpc}$).
+  * `h_global` (*float*): Vacuum floor expansion rate ($67.4275\text{ km/s/Mpc}$).
 * **Algorithmic Pipeline:**
   1. **Ray Vector Synthesis:** Converts input celestial coordinates $(\text{RA}, \text{Dec})$ into 3D unit direction vectors $\hat{n}_{\text{fil}}$ and $\hat{n}_{\text{void}}$.
-  2. **Field Sampling:** Evaluates $H_{\text{local}}(s \hat{n})$ at $N_{\text{steps}} = 250$ discrete points along each path via 3D KD-tree density queries.
-  3. **Numerical Integration:** Performs cumulative Simpson rule path integration $\int_0^s H_{\text{local}}(s') ds'$ to calculate $cz(s)$ profiles.
+  2. **Vectorized Field Sampling:** Batch-evaluates $H_{\text{local}}(s \hat{n})$ across $N_{\text{steps}} = 250$ discrete points along each path in a single C++ `cKDTree` query (`get_hlocal_batch`).
+  3. **Cumulative Numerical Integration:** Performs $O(N)$ cumulative trapezoidal path integration (`scipy.integrate.cumulative_trapezoid`) $\int_0^s H_{\text{local}}(s') ds'$ to calculate $cz(s)$ profiles.
   4. **Residual Derivation:** Computes true distance modulus $\mu_{\text{true}} = 5 \log_{10}(d \cdot 10^5)$ versus naive inversion distance modulus $\mu_{\text{naive}} = 5 \log_{10}((cz/H_{\text{global}}) \cdot 10^5)$ to extract $\Delta\mu(d)$.
-  5. **Checkpoint Interpolation:** Extracts exact distance evaluation checkpoints ($5.0$, $10.0$, $15.0$, $20.0\text{ Mpc}$, etc.) for tabular output export.
+  5. **Checkpoint Interpolation:** Extracts exact distance evaluation checkpoints from `[5.0, 10.0, 15.0, 20.0, 50.0, 100.0, 150.0, 200.0] Mpc` (filtered by `<= max_dist_mpc`) for tabular output export.
 
 ---
 
 ## 📊 Visual Diagnostic Output & Graphics
 
 * **Panel 1 (Redshift Accumulation Path Integral):**
-  Plots accumulated expansion velocity $cz(d)$ along Filament (solid red line) and Void (dashed blue line) corridors against homogeneous Planck $H_0 = 67.42\text{ km/s/Mpc}$ (dotted gray) and SH0ES $H_0 = 73.04\text{ km/s/Mpc}$ (dash-dotted green) baselines. Exposes how velocity builds up faster along overdense structures.
+  Plots accumulated expansion velocity $cz(d)$ along Filament (solid red line) and Void (dashed blue line) corridors against homogeneous Planck ($H_0 = 67.4275\text{ km/s/Mpc}$, dotted gray) and SH0ES ($H_0 = 73.04\text{ km/s/Mpc}$, dash-dotted green) baselines. Exposes how velocity builds up faster along overdense structures.
 * **Panel 2 (Euclid / Rubin LSST Predicted Residual Anomaly):**
   Plots distance modulus residual $\Delta\mu(d)$ along both sightlines relative to the $\Delta\mu = 0.0$ baseline. Demonstrates how void corridors remain flat near $\Delta\mu \approx 0.0\text{ mag}$ while filament corridors dive into negative residual troughs ($\Delta\mu \approx -0.05\text{ to }-0.16\text{ mag}$), directly predicting directional supernova brightness anomalies.
 
@@ -62,9 +62,9 @@ The `redshift_path_integral` module computes first-principles line-of-sight path
 | Metric Key | Unit / Format | Physical Meaning |
 | :--- | :--- | :--- |
 | `Filament Peak H_eff` | `km/s/Mpc` | Maximum cumulative effective expansion rate along filament path. |
-| `Void Floor H_eff` | `km/s/Mpc` | Minimum cumulative effective expansion rate along void path ($H_{\text{eff}} \to H_{\text{global}}$). |
+| `Void Floor H_eff` | `km/s/Mpc` | Minimum cumulative effective expansion rate along void path ($`H_{\text{eff}} \to H_{\text{global}}`$). |
 | `Max Filament Δμ` | `mag` | Maximum negative distance modulus residual trough along filament path. |
-| `Max Path Velocity Δcz` | `km/s` | Peak velocity deficit accumulated between filament and void sightlines ($(cz_{\text{fil}} - cz_{\text{void}})_{\max}$). |
+| `Max Path Velocity Δcz` | `km/s` | Peak velocity deficit accumulated between filament and void sightlines ($`(cz_{\text{fil}} - cz_{\text{void}})_{\max}`$). |
 
 * **CSV Export Schema (`redshift_path_integration_profiles.csv`):**
   * `Distance [Mpc]`: Checkpoint distance $d$ along ray path.

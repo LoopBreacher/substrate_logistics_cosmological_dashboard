@@ -2,7 +2,7 @@
 
 ## 🌟 Executive Summary
 
-The `substrate_cmb_dipole_anomaly` module resolves the longstanding observational tension between the Cosmic Microwave Background (CMB) dipole ($v \approx 369\text{ km/s}$) and large-scale radio galaxy/quasar count dipoles (e.g., NVSS, CatWISE / Secrest et al.). In standard $\Lambda\text{CDM}$, the CMB dipole is assumed to be 100% kinematic Doppler motion. Substrate Logistics demonstrates that line-of-sight spatial address unspooling along 3D cosmic web density fields ($\Delta H_{\text{local}}$) introduces an intrinsic directional redshifting component. Combining the Solar System kinematic Doppler vector with path-integrated metric unspooling yields a zero-parameter dynamic dipole shift ($\sim 6.5^\circ\text{--}15^\circ$) pointing directly toward the Centaurus / Great Attractor overdensity peak, explaining why quasar count dipoles measure systematically larger amplitudes without invoking anomalous bulk flows.
+The `substrate_cmb_dipole_anomaly` module resolves the longstanding observational tension between the Cosmic Microwave Background (CMB) dipole ($v \approx 369\text{ km/s}$) and large-scale radio galaxy/quasar count dipoles (e.g., NVSS, CatWISE / Secrest et al.). In standard $\Lambda\text{CDM}$, the CMB dipole is assumed to be 100% kinematic Doppler motion. Substrate Logistics demonstrates that line-of-sight spatial address unspooling along 3D cosmic web density fields ($\Delta H_{\text{local}}$)—evaluated after orthogonally rotating Galactic HEALPix rays into the catalog's ICRS frame (`R_GAL_TO_ICRS`)—introduces an intrinsic directional redshifting component. Combining the Solar System kinematic Doppler vector with path-integrated metric unspooling yields a zero-parameter dynamic dipole tilt relative to the pure kinematic apex, explaining why quasar count dipoles deviate from pure motion expectations without invoking anomalous bulk flows.
 
 ---
 
@@ -49,8 +49,8 @@ $$b_{\text{tot}} = \arcsin\left(\frac{d_z}{A_{\text{total}}}\right), \quad l_{\t
 ## ⚙️ Architectural & Technical Implementation
 
 * **Primary Driver Function:** `run_cmb_dipole_analysis(...)`
-* **Cached Ray-Tracing Engine:** `_compute_cmb_dipole_cached(...)`
-* **Core Dependencies:** `healpy`, `scipy.integrate.simpson`, `astropy.coordinates.SkyCoord`, `modules.data_loader` (`get_hlocal_batch`)
+* **Cached Ray-Tracing Engine:** `_compute_cmb_dipole_cached(..., catalog_sig, ...)` (keyed by catalog length and summed node mass so survey switches invalidate cached sky maps)
+* **Core Dependencies:** `healpy` (or `healpy_compat`), `scipy.integrate.simpson`, `astropy.coordinates.SkyCoord`, `modules.data_loader` (`get_hlocal_batch`, `galactic_to_icrs_vecs`, `R_GAL_TO_ICRS`)
 
 ### Input Parameters
 
@@ -60,7 +60,7 @@ $$b_{\text{tot}} = \arcsin\left(\frac{d_z}{A_{\text{total}}}\right), \quad l_{\t
 * `nside`: HEALPix resolution parameter ($8, 16, 32$; default `32`, yielding $12,288$ sky pixels).
 * `d_max_mpc`: Ray-tracing integration depth in Mpc ($5.0\text{--}200.0\text{ Mpc}$).
 * `sigma_mpc`: Base Gaussian kernel bandwidth $\sigma_0$ ($0.5\text{--}20.0\text{ Mpc}$).
-* `h_global`: Global vacuum expansion floor ($67.42\text{ km/s/Mpc}$).
+* `h_global`: Global vacuum expansion floor ($67.4275\text{ km/s/Mpc}$).
 * `v_pec_km_s`: Observer peculiar velocity ($369.0\text{ km/s}$).
 * `l_kin_deg`, `b_kin_deg`: Kinematic Doppler apex in Galactic coordinates (264.0°, +48.0°).
 
@@ -105,10 +105,10 @@ The module outputs a full-sky Mollweide projection map ($\Delta T(\theta, \phi)$
 * **Execution Time:** `~3.85 s` (utilizing multi-threaded C++ `get_hlocal_batch`).
 * **Memory Footprint:** `< 25 MB` temporary array allocation.
 
-### Survey Catalog Response & Field Scaling
+### Survey Catalog Response & Field Scaling (J2000 Galactic-to-ICRS Aligned)
 
-* **UNG 2013 ($\le 35\text{ Mpc}$):** Captures immediate Local Sheet and Virgo cluster path integrals, generating localized shifts of $\sim 1.2^\circ\text{--}3.5^\circ$.
-* **Cosmicflows-4 ($\le 150\text{ Mpc}$):** Integrates across the Great Attractor, Laniakea, and Perseus-Pisces, producing dipole shifts of $\sim 5.0^\circ\text{--}8.5^\circ$.
-* **2M++ Infrared ($\le 200\text{ Mpc}$):** Provides complete 3D coverage bridging galactic dust gaps, generating net dynamic dipole shifts of **$\sim 6.5^\circ\text{--}10.2^\circ$** toward Galactic coordinates $(273.2^\circ\text{--}276.0^\circ, +50.3^\circ)$.
+* **UNG 2013 ($\le 35\text{ Mpc}$, $\sigma = 1.8\text{ Mpc}$):** Net shifted dipole axis at `(264.7°, +47.6°)` with composite amplitude `3.297 mK`.
+* **Cosmicflows-4 ($\le 150\text{ Mpc}$, $\sigma = 2.0\text{ Mpc}$):** Integrates across the Great Attractor and Laniakea corridors, shifting the dipole axis to `(270.5°, +43.7°)` (~`6.2°` angular shift, `2.934 mK`).
+* **2M++ Infrared ($\le 200\text{ Mpc}$, $\sigma = 3.5\text{ Mpc}$):** Full-sky coverage out to $200\text{ Mpc}$ shifts the net dipole axis to `(259.6°, +51.7°)` (~`4.7°` shift, `2.959 mK`).
 
 ---

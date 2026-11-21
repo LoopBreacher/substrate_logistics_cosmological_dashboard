@@ -3,7 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.integrate import simpson
 
-from .data_loader import H_GLOBAL
+from .data_loader import (
+    C_LIGHT,
+    H_GLOBAL,
+    OMEGA_M_GLOBAL
+)
 
 # 1. Local SNe Ia Calibrator Sample (Host Galaxies with Standard Candle Benchmarks)
 CALIBRATOR_SNE = [
@@ -32,8 +36,8 @@ HUBBLE_FLOW_SNE = [
 
 def mu_lcdm(z, h0=H_GLOBAL, om=0.315, ol=0.685):
     """Standard Lambda-CDM Distance Modulus with Dark Energy."""
-    c = 299792.458
-    z_grid = np.linspace(0.00001, z, 150)
+    c = C_LIGHT / 1000.0
+    z_grid = np.linspace(0.0, z, 151)
     e_z = np.sqrt(om * (1.0 + z_grid)**3 + ol)
     d_com = (c / h0) * simpson(1.0 / e_z, x=z_grid)
     d_l = (1.0 + z) * d_com
@@ -41,9 +45,9 @@ def mu_lcdm(z, h0=H_GLOBAL, om=0.315, ol=0.685):
 
 def mu_substrate(z, h0=H_GLOBAL, om=0.315):
     """Substrate Logistics Distance Modulus: Zero Dark Energy (Omega_L = 0) + Memory Drag."""
-    c = 299792.458
+    c = C_LIGHT / 1000.0
     ok = 1.0 - om
-    z_grid = np.linspace(0.00001, z, 150)
+    z_grid = np.linspace(0.0, z, 151)
     e_z = np.sqrt(om * (1.0 + z_grid)**3 + ok * (1.0 + z_grid)**2)
     chi = (c / h0) * simpson(1.0 / e_z, x=z_grid)
     r0 = (c / h0) / np.sqrt(ok)
@@ -57,7 +61,7 @@ def mu_substrate(z, h0=H_GLOBAL, om=0.315):
 
 def run_hubble_fitter_analysis(
     tree=None, gal_positions=None, nodes_per_galaxy=None,
-    sigma_mpc=1.8, h_global=H_GLOBAL
+    sigma_mpc=1.8, h_global=H_GLOBAL, om=0.315
 ):
     """
     Main Streamlit UI entry point for Tab 5. Fits Hubble Flow SNe Ia with Substrate Memory Drag
@@ -89,7 +93,7 @@ def run_hubble_fitter_analysis(
         z = sn['z']
         m_b = sn['mb']
         mu_l = mu_lcdm(z, h0=h_global)
-        mu_s = mu_substrate(z, h0=h_global)
+        mu_s = mu_substrate(z, h0=h_global, om=om)
         d_L_sub = 10.0 ** ((mu_s - 25.0)/5.0)
         hf_rows.append({
             "Supernova": sn['name'],
@@ -120,7 +124,7 @@ def run_hubble_fitter_analysis(
     # Panel 1: Hubble Flow Distance Modulus μ(z) Curve
     z_curve = np.linspace(0.01, 0.85, 100)
     mu_lcdm_curve = [mu_lcdm(z, h0=h_global) for z in z_curve]
-    mu_sub_curve = [mu_substrate(z, h0=h_global) for z in z_curve]
+    mu_sub_curve = [mu_substrate(z, h0=h_global, om=om) for z in z_curve]
 
     ax1.plot(z_curve, mu_lcdm_curve, color='#38bdf8', linestyle='--', linewidth=2.0, label=r'$\Lambda$CDM ($\Omega_\Lambda = 0.685$)')
     ax1.plot(z_curve, mu_sub_curve, color='#f43f5e', linewidth=2.5, label=r'Substrate Logistics ($\Omega_\Lambda = 0$, Drag)')
@@ -130,7 +134,7 @@ def run_hubble_fitter_analysis(
     ax1.scatter(df_hf['Redshift z'], mu_obs_hf, color='#10b981', s=60, zorder=5, label='Pantheon+ SNe Ia Sample')
 
     ax1.set_xlabel('Redshift $z$', color='#cbd5e1', fontsize=11)
-    ax1.set_ylabel('Distance Modulus $\mu = m_B - M_B$ [mag]', color='#cbd5e1', fontsize=11)
+    ax1.set_ylabel(r'Distance Modulus $\mu = m_B - M_B$ [mag]', color='#cbd5e1', fontsize=11)
     ax1.set_title('Hubble Flow SNe Ia Fit & Dark Energy Elimination', color='#f8fafc', fontsize=12)
     ax1.tick_params(colors='#94a3b8')
     ax1.grid(True, alpha=0.2, linestyle=':')
@@ -142,8 +146,8 @@ def run_hubble_fitter_analysis(
     ax2.axhline(0.0, color='#94a3b8', linestyle=':', label='Zero Residual Baseline')
 
     ax2.set_xlabel('Redshift $z$', color='#cbd5e1', fontsize=11)
-    ax2.set_ylabel('Magnitude Residual $\Delta \mu$ [mag]', color='#cbd5e1', fontsize=11)
-    ax2.set_title('Substrate vs. $\Lambda$CDM Residual Envelope', color='#f8fafc', fontsize=12)
+    ax2.set_ylabel(r'Magnitude Residual $\Delta \mu$ [mag]', color='#cbd5e1', fontsize=11)
+    ax2.set_title(r'Substrate vs. $\Lambda$CDM Residual Envelope', color='#f8fafc', fontsize=12)
     ax2.tick_params(colors='#94a3b8')
     ax2.grid(True, alpha=0.2, linestyle=':')
     ax2.legend(loc='upper right', facecolor='#0f172a', edgecolor='none')

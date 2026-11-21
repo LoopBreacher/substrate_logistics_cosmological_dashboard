@@ -11,6 +11,7 @@ from .data_loader import (
     KPC_TO_METER,
     A_OMEGA,
     RAD_TO_ARCSEC,
+    CLUSTER_BIAS_1MB,
     compute_a_omega,
     get_compiled_node_density,
     get_hlocal
@@ -202,6 +203,14 @@ def run_lensing_analysis(
     
     baryon_label_str = f"True Baryonic Baseline ({_format_mass_label_matplotlib(M_baryon)})"
     ax2.axhline(M_baryon / mass_factor, color='#38bdf8', linestyle='--', label=baryon_label_str)
+    if M_baryon >= 1e12:
+        ax2.axhline(
+            (CLUSTER_BIAS_1MB * M_baryon) / mass_factor,
+            color='#ec4899',
+            linestyle='-.',
+            linewidth=1.6,
+            label=rf'WL Hydrostatic Baseline $(1-b)M_B$ ({CLUSTER_BIAS_1MB:.4f})',
+        )
     
     # 1:1 Total Mass Horizon Guide Line
     ax2.axvline(b_1to1_total, color='#38bdf8', linestyle=':', label=f'1:1 Total Mass Horizon ($b={b_1to1_total:.2f}$ kpc)')
@@ -233,7 +242,8 @@ def run_lensing_analysis(
         "1:1 Enclosed Mass Radius (b_cross)": f"{b_focus:.2f} kpc",
         "1:1 Total Mass Horizon (b_1:1)": f"{b_1to1_total:.2f} kpc",
         "Deflection @ Crossover": f"{theta_tot[idx_focus]:.4e} arcsec" if theta_tot[idx_focus] < 1e-2 else f"{theta_tot[idx_focus]:.2f} arcsec",
-        "Total Dark/Light @ b_cross": f"{(M_DM_inf[idx_focus] / M_baryon):.2f} : 1"
+        "Total Dark/Light @ b_cross": f"{(M_DM_inf[idx_focus] / M_baryon):.2f} : 1",
+        "SZ-Lensing Cluster Bias (1-b)": f"{CLUSTER_BIAS_1MB:.4f} (-{(1.0 - CLUSTER_BIAS_1MB)*100:.2f}%)"
     }
 
     return fig, df_lensing, metrics

@@ -8,36 +8,91 @@ import astropy.units as u
 from astroquery.vizier import Vizier
 
 # ==========================================
-# 1. HARDWARE CONSTANTS & METRIC INVARIANTS
+# 1. EXACT FIRST-PRINCIPLES HARDWARE INVARIANTS (ZERO CODATA G)
 # ==========================================
-C_LIGHT = 299792458.0         # m/s (Fundamental execution rate)
-H_GLOBAL = 67.42             # km/s/Mpc (Planck 2018 global vacuum floor)
-T_OMEGA = 1.30147e19          # (Universal Attenuation Tensor)
-K_OMEGA = 1.11587e-37        # m^3 / (node * s^2) Substrate Anchor Constant
-C_DELTA = 4.72e-4             # Topological Drag Constant
-GEOM_SCALAR = 1.2             # Dodecahedral compilation scalar (6/5)
+C_LIGHT          = 299792458.0              # Exact SI speed of light [m/s]
+K_BOLTZMANN      = 1.380649e-23             # Exact SI Boltzmann constant [J/K]
+M_PROTON         = 1.67262192595e-27        # Proton mass anchor [kg] (CODATA 2022)
+M_PROTON_MEV     = 938.27208816             # Proton rest energy [MeV/c^2] (CODATA 2022)
+LAMBDA_BAR_P     = 2.10308910051e-16        # Reduced proton Compton wavelength [m] (CODATA 2022)
+V_NODE           = LAMBDA_BAR_P ** 3        # Sub-node spatial voxel volume [m^3] (~9.301929e-48)
+MEV_FM3_TO_PA    = 1.602176634e32           # 1 MeV/fm^3 in Pascals [J/m^3]
 
-# Physical Weights & Units
-M_PROTON = 1.672622e-27      # kg per node
-M_SOLAR_KG = 1.98847e30      # kg per solar mass
-MPC_TO_METER = 3.08567758e22 # m per Mpc
-KPC_TO_METER = 3.08567758e19 # m per kpc
-UNIT_CONV = 3.24078e-20      # s^-1 to (km/s/Mpc)
+# 120-Cell Poincare Dodecahedral Geometry (kappa = |I*| * E_f / F = 120 * 5 / 12 = 50)
+KAPPA            = 50.0
+KAPPA_5          = KAPPA ** 5               # 3.125e8 (5D state-space partition)
+A_OMEGA_TENSOR   = KAPPA ** 10              # 9.765625e16 (10D metric attenuation)
+B_MAX            = 400.0 / 3.0              # Bare-metal buffer scalar (8/3 * kappa)
+GEOM_SCALAR      = 1.2                      # 36 routing channels / 30 dodecahedral edges
+DRAG_TAX_3D      = 0.017032                 # 3D volumetric 36-channel routing drag tax (1.7032%)
 
-# Universal Baseline Acceleration & Angular Invariants
-H_OMEGA_SI = H_GLOBAL * UNIT_CONV                       # s^-1 (~ 2.18493e-18 s^-1)
-A_OMEGA = (C_LIGHT * H_OMEGA_SI) / (2.0 * np.pi)         # m/s^2 (~ 1.04251e-10 m/s^2)
-RAD_TO_ARCSEC = (180.0 * 3600.0) / np.pi                # arcsec / radian (~ 206264.81)
+# Exact Algebraic Universal Topological Drag & Closed-Form T_Omega / K_Omega
+C_DELTA                 = (np.sqrt(5.0) - 2.0) / 500.0        # 4.7213595500e-4
+SQRT_C_DELTA            = np.sqrt(C_DELTA)                    # 0.0217286897
+C_DELTA_FOURTH_ROOT     = np.sqrt(SQRT_C_DELTA)               # 0.1474065
+C_DELTA_INV_FOURTH_ROOT = 1.0 / C_DELTA_FOURTH_ROOT           # 6.7839605
+DISK_TRUNCATION_RATIO   = 0.5 * np.log(1.0 / C_DELTA)         # 3.829119 (2D exponential disk cliff)
+
+T_OMEGA          = (B_MAX * A_OMEGA_TENSOR) / (1.0 + C_DELTA) # 1.3014688631e19
+T_OMEGA_SQ       = T_OMEGA ** 2                               # 1.6938212016e38
+K_OMEGA          = (LAMBDA_BAR_P * (C_LIGHT ** 2)) / T_OMEGA_SQ # 1.1159160239e-37 m^3/(node*s^2)
+
+# Astronomical Unit Conversions
+M_SOLAR_KG       = 1.98847e30
+AU_TO_METER      = 1.495978707e11
+MPC_TO_METER     = 3.0856775814913673e22
+KPC_TO_METER     = MPC_TO_METER / 1000.0
+UNIT_CONV        = 1000.0 / MPC_TO_METER                      # Exact s^-1 per (km/s/Mpc) (~3.24077929e-20)
+RAD_TO_ARCSEC    = (180.0 * 3600.0) / np.pi
+
+# Dual Energy-Density Ledgers & Topological Drag Pressure Floor (P_delta)
+EPSILON_MAX_PA   = (M_PROTON * (C_LIGHT ** 2)) / V_NODE       # 1.61609e37 Pa (100.869 GeV/fm^3)
+P_DELTA_MICRO_PA = C_DELTA * EPSILON_MAX_PA                   # 7.6302e33 Pa
+B_QCD_MEV_FM3    = P_DELTA_MICRO_PA / MEV_FM3_TO_PA           # 47.624 MeV/fm^3
+R_YUKAWA_FM      = (LAMBDA_BAR_P * 1.0e15) * C_DELTA_INV_FOURTH_ROOT # 1.42673 fm
+M_PION_MEV       = M_PROTON_MEV * C_DELTA_FOURTH_ROOT         # 138.307 MeV/c^2
+
+SIGMA_0_RAW      = (2.0 * M_PROTON * (C_LIGHT ** 2)) / (V_NODE * T_OMEGA_SQ * KAPPA_5)
+SIGMA_0_LEDGER   = SIGMA_0_RAW * (1.0 - DRAG_TAX_3D)          # 6.002304e-10 J/m^3
+P_DELTA_MACRO_PA = C_DELTA * SIGMA_0_LEDGER                   # 2.833903e-13 Pa (0.2834 pPa)
+P_DELTA_K_CM3    = (P_DELTA_MACRO_PA / K_BOLTZMANN) * 1.0e-6  # 2.0526e4 K cm^-3
+
+# Zero-Sum 120-Cell Matter Partitions, H_global, S8 & Cluster Mass Bias
+OMEGA_M_VOID     = (12.0 / KAPPA) - SQRT_C_DELTA              # 0.218271
+OMEGA_L_VOID     = 1.0 - OMEGA_M_VOID                         # 0.781729
+OMEGA_M_GLOBAL   = (12.0 / KAPPA) + GEOM_SCALAR * SQRT_C_DELTA # 0.266074
+OMEGA_L_GLOBAL   = 1.0 - OMEGA_M_GLOBAL                       # 0.733926
+OMEGA_M_CORE     = 0.2840                                     # Compiled cluster core saturation
+SIGMA_8_VOID     = np.sqrt(OMEGA_L_VOID)                      # 0.884154
+S8_VOID          = SIGMA_8_VOID * np.sqrt(OMEGA_M_VOID / 0.300)   # 0.7542
+S8_GLOBAL        = SIGMA_8_VOID * np.sqrt(OMEGA_M_GLOBAL / 0.300) # 0.8327
+S8_CORE          = SIGMA_8_VOID * np.sqrt(OMEGA_M_CORE / 0.300)   # 0.8603
+CLUSTER_BIAS_1MB = OMEGA_M_VOID / OMEGA_M_GLOBAL              # 0.8203 (17.97% lensing deficit)
+
+# Derived Cosmological Expansion & BAO Horizon
+H_LAMBDA_SI      = np.sqrt((8.0 * np.pi * LAMBDA_BAR_P * SIGMA_0_LEDGER) / (3.0 * M_PROTON * T_OMEGA_SQ))
+H_LAMBDA         = float(H_LAMBDA_SI / UNIT_CONV)             # 59.6163 km/s/Mpc
+H_GLOBAL         = float(H_LAMBDA / np.sqrt(OMEGA_L_VOID))    # 67.4275 km/s/Mpc
+H_OMEGA_SI       = H_GLOBAL * UNIT_CONV
+A_OMEGA          = (C_LIGHT * H_OMEGA_SI) / (2.0 * np.pi)     # 1.04262e-10 m/s^2
+RHO_GC_EXACT     = (SIGMA_0_LEDGER / (C_LIGHT ** 2)) / M_PROTON # 3.9928 nodes/m^3
+RHO_GC_THRESHOLD = 4.0                                        # Integer 4-channel He^4 ceiling
+R_BAO_MPC        = (C_LIGHT * T_OMEGA * (3.0 * C_DELTA) / GEOM_SCALAR) / MPC_TO_METER # 149.2489 Mpc
 
 # Photometric Mass-to-Light & Absolute Solar Magnitudes
-M_B_SUN = 5.44                # Solar absolute B-band magnitude (UNG 2013 / Cosmicflows)
-M_K_SUN = 3.27                # Solar absolute K-band magnitude (2M++ Infrared)
-M_L_B = 0.44                  # B-band mass-to-light ratio (Bell & de Jong 2001)
-M_L_K = 0.60                  # K-band mass-to-light ratio (Near-Infrared)
+M_B_SUN          = 5.44                # Solar absolute B-band magnitude (UNG 2013 / Cosmicflows)
+M_K_SUN          = 3.27                # Solar absolute K-band magnitude (2M++ Infrared)
+M_L_B            = 0.44                # B-band mass-to-light ratio (Bell & de Jong 2001)
+M_L_K            = 0.60                # K-band mass-to-light ratio (Near-Infrared)
 
-# Hardware Activation Thresholds & Derived Limits
-RHO_GC_THRESHOLD = 4.0       # nodes/m^3 (Garbage Collection threshold)
-R_BAO_MPC = ((C_LIGHT * T_OMEGA * (3.0 * C_DELTA) / GEOM_SCALAR) / MPC_TO_METER) # 149.21 Mpc
+# Exact J2000 Galactic -> ICRS orthogonal rotation matrix (columns are Galactic x, y, z unit axes in ICRS)
+R_GAL_TO_ICRS = SkyCoord(
+    l=[0.0, 90.0, 0.0] * u.deg, b=[0.0, 0.0, 90.0] * u.deg, frame='galactic'
+).icrs.cartesian.xyz.value
+
+def galactic_to_icrs_vecs(vecs_gal):
+    """Rotates (N, 3) Cartesian vectors from Galactic frame into the ICRS frame of gal_positions."""
+    return np.asarray(vecs_gal, dtype=float) @ R_GAL_TO_ICRS.T
 
 # ==========================================
 # HELPER PARSERS FOR MULTI-CATALOG SCHEMAS
@@ -372,43 +427,54 @@ def compute_kernel_volume_stats(sigma_mpc):
         "v_3sigma_mpc3": v_3sigma
     }
     
-def get_hlocal_batch(tree, gal_positions, nodes_per_galaxy, pos_array_mpc, sigma_mpc=1.8, h_global=H_GLOBAL, workers=-1):
+def get_compiled_node_density_batch(tree, gal_positions, nodes_per_galaxy, pos_array_mpc, sigma_mpc=1.8, workers=-1):
     """
-    Evaluates local unspooling rate H_local across an array of 3D positions (M, 3)
-    using 100% vectorized NumPy array indexing and np.bincount.
+    Evaluates 3D compiled node density rho_N(r) in [nodes/m^3] across an array of 3D
+    positions (M, 3) using vectorized C++ cKDTree neighbor search and np.bincount.
+
+    Note: The rho_N >= 4.0 nodes/m^3 compilation filter applies at the stellar/galactic
+    phase level prior to Mpc-scale Gaussian smoothing.
     """
     pos_array = np.asarray(pos_array_mpc, dtype=float)
-    M = pos_array.shape[0]
-    if M == 0:
-        return np.array([])
+    if pos_array.size == 0:
+        return np.array([], dtype=float)
+    if pos_array.ndim == 1:
+        pos_array = pos_array.reshape(1, 3)
 
-    # 1. Multi-threaded C++ batch neighbor search
+    M = pos_array.shape[0]
     idx_lists = tree.query_ball_point(pos_array, r=3.0 * sigma_mpc, workers=workers)
 
     lengths = [len(x) for x in idx_lists]
     total_neighbors = sum(lengths)
-
     if total_neighbors == 0:
-        return np.full(M, h_global, dtype=float)
+        return np.zeros(M, dtype=float)
 
-    # 2. Flatten matched neighbor pairs into 1D indexing vectors
     i_arr = np.repeat(np.arange(M, dtype=np.int64), lengths)
     j_arr = np.concatenate([np.asarray(x, dtype=np.int64) for x in idx_lists if len(x) > 0])
 
-    # 3. Vectorized coordinate distance calculation across all matched pairs
     diffs = gal_positions[j_arr] - pos_array[i_arr]
     dist_sq = diffs[:, 0]**2 + diffs[:, 1]**2 + diffs[:, 2]**2
 
-    # 4. Vectorized Gaussian Kernel & C-level accumulation via np.bincount
     sigma_sq = sigma_mpc ** 2
     norm_factor = ((2.0 * np.pi * sigma_sq) ** 1.5) * (MPC_TO_METER ** 3)
     kernel_vals = np.exp(-0.5 * (dist_sq / sigma_sq)) / norm_factor
     weighted_nodes = nodes_per_galaxy[j_arr] * kernel_vals
 
-    rho_N = np.bincount(i_arr, weights=weighted_nodes, minlength=M)
+    return np.bincount(i_arr, weights=weighted_nodes, minlength=M)
 
-    # 5. Compute local unspooling rates
+
+def get_hlocal_batch(tree, gal_positions, nodes_per_galaxy, pos_array_mpc, sigma_mpc=1.8, h_global=H_GLOBAL, workers=-1):
+    """
+    Evaluates local unspooling rate H_local across an array of 3D positions (M, 3)
+    via get_compiled_node_density_batch using 100% vectorized NumPy indexing.
+    """
+    rho_N = get_compiled_node_density_batch(
+        tree, gal_positions, nodes_per_galaxy, pos_array_mpc, sigma_mpc=sigma_mpc, workers=workers
+    )
+    if rho_N.size == 0:
+        return rho_N
+
     coeff = np.sqrt((8.0 * np.pi * K_OMEGA) / 3.0) / UNIT_CONV
-    delta_H = np.where(rho_N > 0.0, np.sqrt(rho_N) * coeff, 0.0)
+    delta_H = np.where(rho_N > 0.0, np.sqrt(np.maximum(rho_N, 0.0)) * coeff, 0.0)
 
     return h_global + delta_H

@@ -10,6 +10,11 @@ from modules.data_loader import (
     H_GLOBAL,
     K_OMEGA,
     T_OMEGA,
+    C_DELTA,
+    P_DELTA_MACRO_PA,
+    S8_VOID,
+    S8_GLOBAL,
+    DISK_TRUNCATION_RATIO,
     M_PROTON,
     R_BAO_MPC,
     M_SOLAR_KG,
@@ -36,6 +41,8 @@ from modules.spatial_garbage_collection_engine import run_spatial_garbage_collec
 from modules.cpu_bandwidth_throttling import run_cpu_bandwidth_throttling_analysis, THROTTLING_PRESETS
 from modules.substrate_3d_density_viewer import run_3d_density_viewer_analysis
 from modules.substrate_3d_dark_energy import run_3d_dark_energy_analysis, PHYSICAL_ENVIRONMENTS_DE
+from modules.substrate_s8_tension import run_s8_tension_analysis
+from modules.substrate_topological_drag_floor import run_topological_drag_floor_analysis
 
 # ==========================================
 # PAGE CONFIGURATION & CUSTOM STYLING
@@ -230,7 +237,7 @@ d_max_input = st.sidebar.slider(
 
 h_global_input = st.sidebar.number_input(
     "Global Vacuum Floor $H_{\\mathrm{global}}$ [km/s/Mpc]",
-    value=67.42, min_value=60.0, max_value=100.0, step=0.1
+    value=float(round(H_GLOBAL, 4)), min_value=60.0, max_value=100.0, step=0.1, format="%.4f"
 )
 
 # Catalog-Dependent Dynamic Slider Calibration
@@ -270,10 +277,14 @@ st.sidebar.divider()
 st.sidebar.markdown("### ⚙️ Physical Invariants")
 st.sidebar.markdown(f"""
 - **Active Catalog**: `{catalog_choice.split()[0]}`
+- **Topological Drag $\\mathcal{{C}}_\\delta$**: `{C_DELTA:.6e}`
 - **Anchor Constant $\\mathcal{{K}}_\\Omega$**: `{K_OMEGA:.5e}` $\\text{{m}}^3/(\\text{{node}}\\cdot\\text{{s}}^2)$
-- **Universal Attenuation Tensor $\\mathcal{{T}}_\\Omega$**: `{T_OMEGA:.5e}`
-- **Mass / Node ($m_p$)**: `{M_PROTON:.3e}` kg
-- **BAO Natural Ruler ($r_s$)**: `{R_BAO_MPC:.2f}` Mpc
+- **Attenuation Tensor $\\mathcal{{T}}_\\Omega$**: `{T_OMEGA:.5e}`
+- **Mass / Node ($m_p$)**: `{M_PROTON:.5e}` kg
+- **Drag Pressure ($P_\\delta$)**: `{P_DELTA_MACRO_PA:.4e}` Pa
+- **Matter Partition ($S_8$)**: Void `{S8_VOID:.4f}` | Global `{S8_GLOBAL:.4f}`
+- **Disk Truncation Cliff**: `{DISK_TRUNCATION_RATIO:.4f}` $R_d$
+- **BAO Natural Ruler ($r_s$)**: `{R_BAO_MPC:.4f}` Mpc
 """)
 
 # Invalidate cached module results if global catalog settings change
@@ -338,7 +349,8 @@ with domain_1:
               $$H_{\text{obs}}(\hat{n}) = \frac{1}{D_{\text{max}}} \int_{0}^{D_{\text{max}}} H_{\text{local}}(s \hat{n}) \, ds$$
             * **Directional Multiplier & Distance Anomaly:** Converts path-integrated expansion into directional scaling factors $C(\hat{n})$ and distance modulus residuals $\Delta \mu(\hat{n})$:
               $$C(\hat{n}) = \frac{H_{\text{obs}}(\hat{n})}{H_{\text{global}}}, \quad \Delta \mu(\hat{n}) = -5 \log_{10}\left( C(\hat{n}) \right)$$
-            * **Substrate vs. $\Lambda\text{CDM}$ Contrast:** Standard $\Lambda\text{CDM}$ enforces strict isotropic homogeneity ($C(\hat{n}) \equiv 1.0$). Substrate Logistics derives anisotropy directly from compiled matter $N = M / m_p$ and the anchor constant $\mathcal{K}_\Omega$.
+            * **Exact J2000 Galactic-to-ICRS Sky Alignment (`R_GAL_TO_ICRS`):** HEALPix rays constructed in Galactic coordinates are orthogonally rotated into the ICRS catalog frame before `cKDTree` evaluation, and `@st.cache_data` keys include `catalog_sig` so catalog switches never serve stale cached sky maps.
+            * **Substrate vs. $\Lambda\text{CDM}$ Contrast:** Standard $\Lambda\text{CDM}$ enforces strict isotropic homogeneity ($C(\hat{n}) \equiv 1.0$). Substrate Logistics derives anisotropy directly from compiled matter $N = M / m_p$ and the closed-form anchor constant $\mathcal{K}_\Omega$.
 
             ---
             ### ⚙️ Interactive Controls & Parameter Reference
@@ -426,12 +438,12 @@ with domain_1:
 
             ---
             ### 📡 Benchmark Reference Calibration & Targets
-            * **Reference Calibration:** `Cosmicflows-4` Catalog ($d_{\text{max}} = 150\text{ Mpc}$), Field Smoothing $\sigma = 2.0\text{ Mpc}$, $H_{\text{global}} = 67.42\text{ km/s/Mpc}$.
+            * **Reference Calibration:** `Cosmicflows-4` Catalog ($d_{\text{max}} = 150\text{ Mpc}$), Field Smoothing $\sigma = 2.0\text{ Mpc}$, derived $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$.
             * **NGC 6946 (Fireworks Galaxy):** Local Group Wall at $d = 7.72\text{ Mpc}$; exhibits inward infall ($cz_{\text{exp}} = 525.4\text{ km/s}$, $v_{\text{pec}} = -225.4\text{ km/s}$).
-            * **NGC 1365 (Fornax Cluster Core):** Overdense Cluster at $d = 17.17\text{ Mpc}$; exhibits outward recession flow ($cz_{\text{exp}} = 1190.2\text{ km/s}$, $v_{\text{pec}} = +445.8\text{ km/s}$).
-            * **M87 (Virgo Cluster Core):** Dense Cluster Core at $d = 16.50\text{ Mpc}$ ($cz_{\text{exp}} = 1155.7\text{ km/s}$, $v_{\text{pec}} = +128.3\text{ km/s}$).
+            * **NGC 1365 (Fornax Cluster Core):** Overdense Cluster at $d = 17.17\text{ Mpc}$; exhibits outward recession flow ($cz_{\text{exp}} = 1190.4\text{ km/s}$, $v_{\text{pec}} = +445.6\text{ km/s}$).
+            * **M87 (Virgo Cluster Core):** Dense Cluster Core at $d = 16.50\text{ Mpc}$ ($cz_{\text{exp}} = 1155.8\text{ km/s}$, $v_{\text{pec}} = +128.2\text{ km/s}$).
             * **M83 (Southern Pinwheel):** Filament Core at $d = 4.90\text{ Mpc}$ ($cz_{\text{exp}} = 332.7\text{ km/s}$, $v_{\text{pec}} = +180.3\text{ km/s}$).
-            * **KK246 (Deep Void):** Deep Local Void at $d = 7.83\text{ Mpc}$ ($cz_{\text{exp}} = 531.0\text{ km/s}$, $v_{\text{pec}} = -115.0\text{ km/s}$).
+            * **KK246 (Deep Void):** Deep Local Void at $d = 7.83\text{ Mpc}$ ($cz_{\text{exp}} = 531.1\text{ km/s}$, $v_{\text{pec}} = -115.1\text{ km/s}$).
             """)
 
         preset = st.selectbox("Choose Benchmark Target or Custom Query:", [
@@ -599,13 +611,13 @@ with domain_1:
         st.header("KBC Supervoid Radial Expansion Transition & Hubble Relaxation")
         st.info(
             r"🌌 **Physical Principle:** The Keenan-Barger-Cowie (KBC) supervoid extends to $r \sim 300\text{ Mpc}$. "
-            r"Inside the underdense core, local expansion $H_{\text{local}}(r)$ smoothly transitions from the local filament peak $H_0 \approx 72\text{--}73\text{ km/s/Mpc}$ down to the global vacuum floor $H_{\text{global}} = 67.42\text{ km/s/Mpc}$."
+            r"Inside the underdense core, local expansion $H_{\text{local}}(r)$ smoothly transitions from the local filament peak $H_0 \approx 72\text{--}73\text{ km/s/Mpc}$ down to the global vacuum floor $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$."
         )
 
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
             st.markdown(r"""
             ### What This Module Demonstrates
-            * **Hubble Tension Unification:** Resolves the $H_0$ discrepancy ($73\text{ km/s/Mpc}$ local vs. $67.42\text{ km/s/Mpc}$ CMB) as a natural photon path-integration effect through the local $300\text{ Mpc}$ KBC supervoid.
+            * **Hubble Tension Unification:** Resolves the $H_0$ discrepancy ($73\text{ km/s/Mpc}$ local vs. $67.4275\text{ km/s/Mpc}$ closed-form CMB floor) as a natural photon path-integration effect through the local $300\text{ Mpc}$ KBC supervoid.
             * **Distance Ladder Smooth Decay:** Shows how integrated expansion $H_{\text{eff}}(r) = cz(r)/r$ decays continuously from local overdense peaks down to the Planck global vacuum floor.
             * **SNe Ia Residual Predictions:** Maps the distance modulus anomaly $\Delta \mu(r) = -5\log_{10}(H_{\text{eff}}/H_{\text{global}})$, matching SH0ES, Pantheon+, and BAO/CMB observations on a single curve.
 
@@ -616,19 +628,19 @@ with domain_1:
               where $\delta_0 = -0.22$ ($-22\%$ count deficit), $R_{\text{KBC}} = 300\text{ Mpc}$, and $\sigma_{\text{wall}} = 35\text{ Mpc}$.
             * **Path-Integrated Effective Expansion $H_{\text{eff}}(r)$:**
               $$cz(r) = \int_0^r H_{\text{local}}(s)\,ds \implies H_{\text{eff}}(r) = \frac{cz(r)}{r}$$
-            * **Vacuum Floor Relaxation:** At $r > 300\text{ Mpc}$, path integration averages over background void volume, locking integrated expansion strictly onto $H_{\text{global}} = 67.42\text{ km/s/Mpc}$.
+            * **Vacuum Floor Relaxation:** At $r > 300\text{ Mpc}$, path integration averages over background void volume, locking integrated expansion strictly onto $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$.
 
             ---
             ### ⚙️ Interactive Controls & Parameter Reference
             * **Central Density Deficit ($\delta_0$):** Controls the depth of the local KBC supervoid count deficit (default $-0.22$ or $-22\%$).
             * **Local Core Peak ($H_{\text{peak}}$):** Sets the foreground Local Sheet peak expansion rate (default $72.80\text{ km/s/Mpc}$).
-            * **Global Vacuum Floor ($H_{\text{global}}$):** Fundamental hardware floor set by Planck 2018 ($67.42\text{ km/s/Mpc}$).
+            * **Global Vacuum Floor ($H_{\text{global}}$):** Closed-form 120-cell hardware floor ($67.4275\text{ km/s/Mpc}$).
 
             ---
             ### 📡 Model Response & Horizon Relaxation Guidelines
             * **Foreground ($r \le 15\text{ Mpc}$):** Dominated by the Local Sheet overdensity; $H_{\text{eff}} \approx 70.0\text{--}72.8\text{ km/s/Mpc}$.
             * **Intermediate Volume ($50\text{--}150\text{ Mpc}$):** Path integration smooths expansion down to $67.6\text{--}68.1\text{ km/s/Mpc}$, matching Pantheon+ SNe Ia.
-            * **Horizon Limit ($r \ge 300\text{ Mpc}$):** Complete relaxation to $67.42\text{ km/s/Mpc}$, agreeing with DESI / eBOSS BAO and Planck CMB baselines.
+            * **Horizon Limit ($r \ge 300\text{ Mpc}$):** Complete relaxation to $67.4275\text{ km/s/Mpc}$, agreeing with DESI / eBOSS BAO and Planck CMB baselines.
             """)
 
         col_kbc1, col_kbc2 = st.columns(2)
@@ -681,7 +693,7 @@ with domain_2:
             ### 🔬 Key Physical Mechanics
             * **Expansion Gradient Drift:** Peculiar motion is modeled as coordinate conveyor drift directed toward regions of elevated compiled density:
               $$\vec{v}_{\text{inflow}}(\vec{r}) = +\alpha \nabla H_{\text{local}}(\vec{r})$$
-            * **Void Floor Motionless Baseline:** Inside deep voids ($\rho_N \to 0$), expansion locks onto $H_{\text{global}} = 67.42\text{ km/s/Mpc}$. Because $\nabla H = 0$, peculiar velocity naturally drops to $0.00\text{ km/s}$.
+            * **Void Floor Motionless Baseline:** Inside deep voids ($\rho_N \to 0$), expansion locks onto $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$. Because $\nabla H = 0$, peculiar velocity naturally drops to $0.00\text{ km/s}$.
 
             ---
             ### ⚙️ Interactive Controls & Parameter Reference
@@ -724,14 +736,14 @@ with domain_2:
     elif "Void Boundary" in sub_2:
         st.header("Cosmic Void Wall Boundary Dynamics & Velocity Shear")
         st.info(
-            "🧱 **Physical Principle:** Deep inside cosmic voids ($\rho_N \to 0$), local expansion locks onto the global vacuum floor ($H_{\text{global}} = 67.42\\text{ km/s/Mpc}$). "
-            "Crossing into overdense wall corridors increases compiled node density, driving radial expansion boosts and boundary velocity shear spikes."
+            r"🧱 **Physical Principle:** Deep inside cosmic voids ($\rho_N \to 0$), local expansion locks onto the global vacuum floor ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$). "
+            r"Crossing into overdense wall corridors increases compiled node density, driving radial expansion boosts and boundary velocity shear spikes."
         )
 
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
             st.markdown(r"""
             ### What This Module Demonstrates
-            * **Void Core Vacuum Floor Locking ($r \to 0$):** Deep inside empty cosmic voids where matter density vanishes ($\rho_{\text{macro}} \to 0$), expansion locks onto the fundamental hardware floor ($H_{\text{global}} = 67.42\text{ km/s/Mpc}$).
+            * **Void Core Vacuum Floor Locking ($r \to 0$):** Deep inside empty cosmic voids where matter density vanishes ($\rho_{\text{macro}} \to 0$), expansion locks onto the fundamental hardware floor ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$).
             * **Wall Unspooling Field Boost ($r \sim 10\text{--}16\text{ Mpc}$):** As light rays cross into surrounding galaxy wall structures, compiled matter density smoothly boosts local expansion up to $71\text{--}76\text{ km/s/Mpc}$.
             * **Boundary Velocity Shear Spike ($dv_{\text{rec}}/dr$):** Differential expansion across wall boundaries generates a velocity shear spike ($\sim 72\text{--}89\text{ km/s/Mpc}$) that dynamically evacuates voids without requiring dark energy.
 
@@ -829,10 +841,10 @@ with domain_2:
     elif "Galactic Rotation" in sub_2:
         st.header("Galactic Rotation Curves & Kinematic Underflow Floor")
         st.info(
-            r"🌀 **Physical Principle:** In Substrate Logistics, flat galactic rotation curves require zero Cold Dark Matter halos. "
-            r"When localized baryonic acceleration drops below the dynamic Universal Baseline Acceleration ($g_{\text{baryon}} < a_\Omega = \frac{c H_{\text{local}}}{2\pi}$), "
-            r"the grid encounters a Kinematic Underflow Error, clamping outer orbital speeds to "
-            r"$v_{\text{flat}} = \sqrt[4]{N_{\text{total}} K_\Omega a_\Omega}$ (equivalent to $\sqrt[4]{G M_B a_\Omega}$ in classical limits)."
+            r"🌀 **Physical Principle:** In Substrate Logistics, flat galactic rotation curves require zero Cold Dark Matter halos and zero empirical $G$. "
+            r"Evaluating **Freeman (1970) thin exponential disk** or **Spherical Enclosed Mass** baryonic potentials directly from proton nodes ($N_{\text{total}} = M_B / m_p$, $\mathcal{K}_\Omega$), "
+            r"the grid encounters Kinematic Underflow below $a_\Omega = \frac{c H_{\text{local}}}{2\pi}$, clamping outer orbital speeds to "
+            r"$v_{\text{flat}} = \sqrt[4]{N_{\text{total}} \mathcal{K}_\Omega a_\Omega}$ alongside the 2D disk truncation cliff at $R_{\text{trunc}} = \frac{1}{2}\ln(1/\mathcal{C}_\delta)\,R_d \approx 3.8291\,R_d$."
         )
         
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
@@ -840,22 +852,24 @@ with domain_2:
             ### What This Module Demonstrates
             * **Zero Dark Matter Halos:** Replaces dark matter halo fitting with a single hardware limit—the Kinematic Underflow Floor ($a_\Omega$).
             * **Flat Outer Rotation Curves:** Demonstrates how outer orbital speeds lock onto a constant plateau $v_{\text{flat}} = \sqrt[4]{N_{\text{total}} \mathcal{K}_\Omega a_\Omega}$ as baryonic acceleration decays.
-            * **Baryonic Tully-Fisher Relation:** Proves that $v_{\text{flat}} \propto M_B^{1/4}$ is a direct algebraic consequence of metric underflow clamping rather than an empirical mystery.
+            * **Freeman Thin Disk & 2D Truncation Law:** Compares Freeman (1970) exact 2D exponential disk Bessel kinematics against Spherical Enclosed Mass, marking the topological drag disk cutoff $R_{\text{trunc}} = 3.8291\,R_d$.
+            * **Baryonic Tully-Fisher Relation & Deep Underflow:** Proves $v_{\text{flat}} \propto M_B^{1/4}$ algebraically and identifies deep-underflow dwarfs (e.g., DDO 154, $\max g_{\text{eff}} < a_\Omega$).
             * **Live 3D Density Coupling:** Shows how local cosmic environment ($H_{\text{local}}$) dynamically alters the underflow threshold $a_\Omega(\mathbf{x}) = \frac{c H_{\text{local}}(\mathbf{x})}{2\pi}$.
 
             ---
             ### 🔬 Key Physical Mechanics
             * **Kinematic Underflow Coupling:** When baryonic acceleration $g_{\text{baryon}}$ drops below $a_\Omega$, total effective acceleration scales geometrically:
               $$g_{\text{eff}}(r) = \sqrt{g_{\text{baryon}}(r)^2 + g_{\text{baryon}}(r) \cdot a_\Omega}$$
-            * **Proton Node Gravitational Constant ($\mathcal{K}_\Omega$):** Acceleration is evaluated directly from proton counts $N_{\text{total}} = M_B / m_p$ without empirical $G$ fitting:
-              $$g_{\text{baryon}}(r) = \frac{N_{\text{total}} \mathcal{K}_\Omega}{r^2} \quad \left(\equiv \frac{G M_B}{r^2}\right)$$
-            * **Transition Radius ($R^*$):** The exact boundary where effective acceleration crosses the underflow floor ($g_{\text{eff}} = a_\Omega$), occurring at $g_{\text{baryon}}(R^*) \approx 0.618 \cdot a_\Omega$.
+            * **Freeman (1970) Thin Exponential Disk Potential:** Evaluates radial disk acceleration using modified Bessel functions ($y = r / (2 R_d)$) via closed-form proton node constant $\mathcal{K}_\Omega$:
+              $$g_{\text{baryon}}(r) = \frac{N_{\text{total}} \mathcal{K}_\Omega}{R_d^2} \frac{r}{2 R_d} \left[ I_0(y)K_0(y) - I_1(y)K_1(y) \right]$$
+            * **2D Disk Truncation Cliff & Transition Radius ($R^*$):** Marks both the topological drag disk cutoff ($R_{\text{trunc}} = \frac{1}{2}\ln(1/\mathcal{C}_\delta)\,R_d = 3.8291\,R_d$) and the outer crossing where $g_{\text{eff}}(R^*) = a_\Omega$ (or reports `Deep Underflow (< a_Ω)` when $\max g_{\text{eff}} < a_\Omega$).
 
             ---
             ### ⚙️ Interactive Controls & Parameter Reference
             * **Rotation Curve Mode:**
               * *Benchmark Galaxy Presets:* Load standard targets (NGC 3198, Milky Way, DDO 154) to inspect classic rotation curves.
               * *Live Catalog Query:* Select any real galaxy from the active 3D survey catalog to extract its exact spatial position and evaluate $a_\Omega$ from local 3D node density.
+            * **Disk Gravity Geometry:** Switch between **Freeman Thin Disk (Exact)** (default) and **Spherical Enclosed Mass**.
             * **Baryonic Mass ($M_B$):** Total visible baryonic mass (stars + gas) in solar masses ($M_\odot$).
             * **Kernel Scale ($\sigma$ in Sidebar):** Gaussian smoothing window used for 3D density evaluation during catalog queries.
 
@@ -865,9 +879,15 @@ with domain_2:
             * **Extended Catalogs (Cosmicflows-4 / 2M++):** Evaluates galaxies in deep cosmic web environments out to $200\text{ Mpc}$, showing how cluster environments boost $a_\Omega$.
             """)
 
-        mode_rot = st.radio(
+        col_rot_mode, col_rot_geom = st.columns([1.4, 1.0])
+        mode_rot = col_rot_mode.radio(
             "Select Rotation Curve Mode:",
             ["🎯 Benchmark Galaxy Presets (SPARC / MW / Dwarf)", "📡 Live Catalog Query (3D Density-Coupled a_Ω)"],
+            horizontal=True
+        )
+        disk_geom_rot = col_rot_geom.radio(
+            "Disk Gravity Geometry:",
+            ["Freeman Thin Disk (Exact)", "Spherical Enclosed Mass"],
             horizontal=True
         )
 
@@ -953,7 +973,8 @@ with domain_2:
                     sigma_mpc=sigma_k_rot,
                     tree=tree,
                     gal_positions=gal_positions,
-                    nodes_per_galaxy=nodes_per_galaxy
+                    nodes_per_galaxy=nodes_per_galaxy,
+                    disk_geometry=disk_geom_rot
                 )
                 st.session_state[m_key] = (fig_rot, df_rot, rot_metrics)
 
@@ -977,7 +998,7 @@ with domain_2:
             ### What This Module Demonstrates
             * **3D Cosmic Web Rendering:** Interactively maps galaxy positions in ICRS Cartesian coordinates $(X, Y, Z)$ [Mpc] alongside 3D volumetric filament isosurface meshes generated by local density gradients.
             * **Zero-Parameter Mass & Metric Coupling:** Color-codes each galaxy node by its localized unspooling expansion rate $H_{\text{local}}(\vec{r})$, derived directly from compiled baryonic matter ($M_B = N \cdot m_p$) without dark matter halos.
-            * **Volumetric Isosurface Web:** Visualizes 3D overdense filament corridors and cluster nodes where compiled matter accelerates local metric expansion above the global vacuum floor ($H_{\text{global}} = 67.42\text{ km/s/Mpc}$).
+            * **Volumetric Isosurface Web:** Visualizes 3D overdense filament corridors and cluster nodes where compiled matter accelerates local metric expansion above the global vacuum floor ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$).
 
             ---
             ### 🔬 Key Physical Mechanics
@@ -1148,7 +1169,12 @@ with domain_2:
 with domain_3:
     sub_3 = st.radio(
         "Select Module:",
-        ["📏 BAO Ruler Warping", "🛰️ CMB Dipole Anomaly", "🔍 Zero-Dark-Matter Gravitational Lensing"],
+        [
+            "📏 BAO Ruler Warping",
+            "🛰️ CMB Dipole Anomaly",
+            "🔍 Zero-Dark-Matter Gravitational Lensing",
+            "⚖️ S8 Weak Lensing Tension",
+        ],
         horizontal=True
     )
     st.divider()
@@ -1157,10 +1183,10 @@ with domain_3:
     if "BAO Ruler" in sub_3:
         st.header("Baryon Acoustic Oscillation Ruler Warping & AP Test")
         st.info(
-            r"📏 **First-Principles Derivation:** The BAO sound horizon ($r_s = 149.21\text{ Mpc}$) is derived strictly "
+            r"📏 **First-Principles Derivation:** The BAO sound horizon ($r_s = 149.25\text{ Mpc}$) is derived strictly "
             r"from structural invariants without thermodynamic tuning: the maximum causal horizon $R_{\text{max}} = c \cdot \mathcal{T}_\Omega = 3.9017 \times 10^{27}\text{ m}$ "
-            r"is subjected to 3D topological drag penalty $R_{\text{restricted}} = R_{\text{max}} \cdot (3 \cdot \mathcal{C}_\delta) = 5.5248 \times 10^{24}\text{ m}$ "
-            r"and divided by the dodecahedral compilation scalar ($1.2$) to yield $R_{\text{BAO}} = 4.6040 \times 10^{24}\text{ m} \equiv \mathbf{149.21\text{ Mpc}}$. "
+            r"is subjected to 3D topological drag penalty $R_{\text{restricted}} = R_{\text{max}} \cdot (3 \cdot \mathcal{C}_\delta) = 5.5264 \times 10^{24}\text{ m}$ "
+            r"and divided by the dodecahedral compilation scalar ($1.2$) to yield $R_{\text{BAO}} = 4.6053 \times 10^{24}\text{ m} \equiv \mathbf{149.25\text{ Mpc}}$. "
             r"As photon rays traverse overdense filaments, higher compiled density boosts local expansion ($H_{\text{eff}} > H_{\text{global}}$), "
             r"deforming the acoustic sphere into an anisotropic ellipsoid: **radial squashing ($r_\parallel < r_s$)** and "
             r"**transverse dilation ($r_\perp > r_s$)**, quantified by $F_{\text{AP}} = \alpha_\perp / \alpha_\parallel = C^{3/2}$."
@@ -1169,35 +1195,45 @@ with domain_3:
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
             st.markdown(r"""
             ### What This Module Demonstrates
-            * **Anisotropic Geometric Warping:** Demonstrates how an ideal $149.21\text{ Mpc}$ spherical acoustic shell deforms into an elongated ellipsoid along overdense supercluster corridors ($F_{\text{AP}} \approx 1.050\text{--}1.127$) while remaining nearly isotropic across deep cosmic voids ($F_{\text{AP}} \approx 1.0055$, $+0.55\%$).
+            * **Anisotropic Geometric Warping:** Demonstrates how an ideal $149.25\text{ Mpc}$ spherical acoustic shell deforms into an elongated ellipsoid along overdense supercluster corridors ($F_{\text{AP}} \approx 1.050\text{--}1.127$) while remaining nearly isotropic across deep cosmic voids ($F_{\text{AP}} \approx 1.0055$, $+0.55\%$).
             * **Validation of Local BAO Structures (Ho'oleilana):** Provides a physical mechanism for empirical discoveries like *Ho'oleilana* in Cosmicflows-4—a giant local BAO structure dilated to $r_\perp \approx 152.5\text{--}155.3\text{ Mpc}$—without requiring dark energy fine-tuning or anomalous Hubble constants.
-            * **Horizon Volume Relaxation:** Demonstrates that path integration out to the true sound horizon ($149.21\text{ Mpc}$) averages over local void and filament fluctuations, bringing void corridor predictions into strict agreement with DESI / eBOSS isotropy bounds ($\le 0.6\%$).
+            * **Horizon Volume Relaxation:** Demonstrates that path integration out to the true sound horizon ($149.25\text{ Mpc}$) averages over local void and filament fluctuations, bringing void corridor predictions into strict agreement with DESI / eBOSS isotropy bounds ($\le 0.6\%$).
 
             ---
             ### 🔬 Key Physical Mechanics
-            * **Bare-Metal Acoustic Horizon ($r_s = 149.21\text{ Mpc}$):**
-              $$r_s = \frac{c \cdot \mathcal{T}_\Omega \cdot (3 \mathcal{C}_\delta)}{1.2} = \frac{(2.9979 \times 10^8) \cdot (1.3015 \times 10^{19}) \cdot (1.416 \times 10^{-3})}{1.2} \equiv 149.21\text{ Mpc}$$
+            * **Bare-Metal Acoustic Horizon ($r_s = 149.25\text{ Mpc}$):**
+              $$r_s = \frac{c \cdot \mathcal{T}_\Omega \cdot (3 \mathcal{C}_\delta)}{1.2} = \frac{(2.9979 \times 10^8) \cdot (1.30147 \times 10^{19}) \cdot (1.4164 \times 10^{-3})}{1.2} \equiv 149.25\text{ Mpc}$$
             * **Alcock-Paczynski Distortion Parameter ($F_{\text{AP}}$):**
               $$C = \frac{H_{\text{eff}}}{H_{\text{global}}}, \quad \alpha_\parallel = \frac{1}{C}, \quad \alpha_\perp = \sqrt{C} \implies F_{\text{AP}} = \frac{\alpha_\perp}{\alpha_\parallel} = C^{3/2}$$
 
             ---
             ### ⚙️ Interactive Controls & Parameter Reference
             * **Ray Integration Depth [Mpc]:** Distance integrated along ray paths.
-              * *Full Horizon ($149.21\text{ Mpc}$ - Recommended):* Integrates across the true physical acoustic sound horizon, correctly balancing foreground cluster nodes with background void volume.
+              * *Full Horizon ($149.25\text{ Mpc}$ - Recommended):* Integrates across the true physical acoustic sound horizon, correctly balancing foreground cluster nodes with background void volume.
               * *Local Foreground ($20.0\text{ Mpc}$):* Samples only immediate local galaxy neighborhoods, exaggerating local density spikes.
             * **AP Scan Declination [deg]:** Declination angle for the $360^\circ$ Right Ascension sky scan plane, mapping anisotropic dilation variations across 2D slices of the cosmic web.
             * **Field Smoothing Scale ($\sigma$ in Sidebar):** Gaussian kernel bandwidth used to evaluate continuous 3D node density fields $\rho_N(\vec{r})$.
-              * *Coarse ($\sigma = 5.0\text{ Mpc}$):* Smooths discrete cluster core spikes (e.g., Coma $F_{\text{AP}} = 1.1272$, $+12.72\%$; Virgo $F_{\text{AP}} = 1.0677$, $+6.77\%$).
+              * *Coarse ($\sigma = 5.0\text{ Mpc}$):* Smooths discrete cluster core spikes (e.g., Coma $F_{\text{AP}} = 1.1272$, $+12.72\%$; Virgo $F_{\text{AP}} = 1.0676$, $+6.76\%$).
               * *Fine ($\sigma = 1.8\text{ Mpc}$):* Resolves sharp virial cluster boundaries, increasing peak node anisotropy while maintaining deep void floor convergence.
 
             ---
             ### 📡 Survey Catalog Response & Performance Guidelines
-            * **Cosmicflows-4 ($\le 150\text{ Mpc}$):** Maps major cosmic web features (Coma, Virgo, Centaurus, Perseus-Pisces), predicting transverse dilations of $r_\perp = 151.6\text{--}155.3\text{ Mpc}$ along overdense corridors.
+            * **Cosmicflows-4 ($\le 150\text{ Mpc}$):** Maps major cosmic web features (Coma, Virgo, Centaurus, Perseus-Pisces), predicting transverse dilations of $r_\perp = 151.7\text{--}155.3\text{ Mpc}$ along overdense corridors.
             * **2M++ Infrared ($\le 200\text{ Mpc}$):** Extends path integration through full supercluster complexes, smoothing void floor dilation down to $F_{\text{AP}} < 1.002$.
             """)
 
         col_bao1, col_bao2 = st.columns(2)
-        depth_bao_input = col_bao1.slider("Ray Integration Depth [Mpc]", 20.0, float(d_max_input), 149.21, 10.0, help="Setting depth to 149.21 Mpc integrates across the true physical BAO acoustic scale.")
+        bao_max = float(d_max_input)
+        bao_min = float(min(20.0, bao_max))
+        if bao_min >= bao_max:
+            bao_min = max(1.0, bao_max - 5.0)
+        bao_default = float(min(round(R_BAO_MPC, 2), bao_max))
+        bao_step = float(min(10.0, max(1.0, bao_max - bao_min)))
+        depth_bao_input = col_bao1.slider(
+            "Ray Integration Depth [Mpc]",
+            bao_min, bao_max, bao_default, bao_step,
+            help=f"Setting depth to {R_BAO_MPC:.2f} Mpc integrates across the true physical BAO acoustic scale."
+        )
         dec_scan_input = col_bao2.slider("AP Scan Declination [deg]", -60.0, 60.0, 0.0, 5.0, help="Declination slice plane used for the 360° Right Ascension sky scan.")
 
         run_bao = st.button("🚀 Execute BAO Alcock-Paczynski Scan", type="primary", use_container_width=True)
@@ -1226,21 +1262,21 @@ with domain_3:
     elif "CMB Dipole" in sub_3:
         st.header("Hybrid Kinematic & Unspooling CMB Dipole Anomaly")
         st.info(
-            r"🛰️ **Physical Principle:** Combines Solar System Doppler motion ($369.0\text{ km/s}$) "
-            r"with zero-parameter Substrate path-integrated metric unspooling anisotropy. "
-            r"Integrated redshifting through 3D compiled matter density produces a zero-parameter "
-            r"dipole axis tilt pointing toward the Centaurus / Great Attractor overdensity peak."
+            r"🛰️ **Physical Principle:** Combines Solar System Doppler motion ($369.0\text{ km/s}$ toward Galactic $(264.0^\circ, +48.0^\circ)$) "
+            r"with zero-parameter Substrate path-integrated metric unspooling anisotropy evaluated in the exact J2000 ICRS catalog frame (`R_GAL_TO_ICRS`). "
+            r"Integrated redshifting through 3D compiled matter density induces a dynamic directional dipole tilt relative to the pure kinematic apex."
         )
 
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
             st.markdown(r"""
             ### What This Module Demonstrates
-            * **Hybrid CMB Dipole Signal:** Proves that the observed $3.35\text{ mK}$ CMB dipole is not a pure kinematic motion effect, but a hybrid composite combining Solar peculiar motion with directional metric unspooling along local matter fields.
-            * **Dynamic Observable Axis Shift ($\sim 6.5^\circ\text{--}10^\circ$ Tilt):** Standard $\Lambda\text{CDM}$ assumes the CMB dipole is 100% kinematic Doppler motion pointing toward $(264.0^\circ, +48.0^\circ)$ (Leo/Crater). In Substrate Logistics, vector-adding the Solar Doppler dipole ($3.355\text{ mK}$) and the directional metric unspooling dipole ($0.45\text{--}0.80\text{ mK}$ integrated along 3D catalog density) shifts the net observable dipole axis to **$(273.2^\circ\text{--}276.0^\circ, +50.3^\circ)$**—inducing a dynamic angular tilt toward the Centaurus / Great Attractor overdensity peak.
-            * **Resolving the NVSS / CatWISE Quasar Dipole Tension:** Explains why radio galaxy and quasar count surveys (e.g., Secrest et al.) measure dipole amplitudes over twice as large as expected from pure motion alone.
+            * **Hybrid CMB Dipole Signal:** Proves that the observed $\sim 3.3\text{ mK}$ CMB dipole is not a pure kinematic motion effect, but a hybrid composite combining Solar peculiar motion with directional metric unspooling along local matter fields.
+            * **Dynamic Observable Axis Shift:** Standard $\Lambda\text{CDM}$ assumes the CMB dipole is 100% kinematic Doppler motion pointing toward $(264.0^\circ, +48.0^\circ)$ (Leo/Crater). Vector-adding the J2000 Galactic-to-ICRS aligned metric unspooling dipole tilts the net observable dipole axis dynamically by several degrees (e.g., $(270.5^\circ, +43.7^\circ)$ across Cosmicflows-4 at $150\text{ Mpc}$ and $(259.6^\circ, +51.7^\circ)$ across 2M++ at $200\text{ Mpc}$).
+            * **Resolving the NVSS / CatWISE Quasar Dipole Tension:** Explains why radio galaxy and quasar count surveys (e.g., Secrest et al.) measure dipole amplitudes differing from pure motion expectations.
 
             ---
             ### 🔬 Key Physical Mechanics
+            * **J2000 Galactic-to-ICRS Frame Alignment & Cache Invalidation:** Galactic HEALPix rays are orthogonally rotated into the ICRS catalog frame (`R_GAL_TO_ICRS`) before KD-Tree evaluation, while `@st.cache_data` keys include `catalog_sig` so switching surveys immediately recomputes the map.
             * **Thermodynamic Monopole Subtraction ($\bar{\Delta T}$):** Isolates pure directional sky fluctuations ($\ell \ge 1$) by subtracting the isotropic mean:
               $$\Delta T_{\text{sub}}(\hat{n}) = \Delta T_{\text{sub, raw}}(\hat{n}) - \bar{\Delta T}_{\text{sub, raw}}$$
             * **Adaptive Density Kernel:** Evaluates line-of-sight ray path integrals ($c \Delta z = \int \Delta H \, ds$) using adaptive spatial kernel smoothing ($\sigma(s) = \sigma_0 \sqrt{1 + s/10}$) to ensure continuous density integration without discrete galaxy sampling spikes.
@@ -1249,12 +1285,13 @@ with domain_3:
             ### ⚙️ Interactive Controls & Parameter Reference
             * **HEALPix Resolution ($N_{\text{side}}$):** Spatial pixel density ($N_{\text{side}}=16 \to 3,072$ pixels; $N_{\text{side}}=32 \to 12,288$ pixels).
             * **Integration Depth [Mpc]:** Distance integrated along ray paths. Integrating out to $150\text{--}200\text{ Mpc}$ incorporates full macro-structures (Great Attractor, Shapley Concentration).
-            * **Field Smoothing Scale ($\sigma$ in Sidebar):** Base Gaussian bandwidth kernel ($\sigma_0$). Values around $2.5\text{--}3.5\text{ Mpc}$ bridge sparse dust regions in 2M++ while maintaining filament density contrast.
+            * **Field Smoothing Scale ($\sigma$ in Sidebar):** Base Gaussian bandwidth kernel ($\sigma_0$). Values around $2.0\text{--}3.5\text{ Mpc}$ bridge sparse dust regions in 2M++ while maintaining filament density contrast.
 
             ---
             ### 📡 Survey Catalog Response & Performance Guidelines
-            * **UNG 2013 (Local Volume $\le 35\text{ Mpc}$):** Evaluates local volume redshifting; renders in `< 0.8s`.
-            * **2M++ Infrared ($\le 200\text{ Mpc}$, $\sigma = 3.5\text{ Mpc}$):** Full 3D ray-tracing across $12,288$ sky directions in `~3.85s`, yielding net composite dipole shifts of $\sim 6.5^\circ\text{--}10.2^\circ$.
+            * **UNG 2013 ($\le 35\text{ Mpc}$, $\sigma = 1.8\text{ Mpc}$):** Net axis $(264.7^\circ, +47.6^\circ)$, composite amplitude $3.297\text{ mK}$.
+            * **Cosmicflows-4 ($\le 150\text{ Mpc}$, $\sigma = 2.0\text{ Mpc}$):** Net axis $(270.5^\circ, +43.7^\circ)$ ($\sim 6.2^\circ$ shift toward Centaurus / Great Attractor), amplitude $2.934\text{ mK}$.
+            * **2M++ Infrared ($\le 200\text{ Mpc}$, $\sigma = 3.5\text{ Mpc}$):** Net axis $(259.6^\circ, +51.7^\circ)$ ($\sim 4.7^\circ$ shift), amplitude $2.959\text{ mK}$.
             """)
             
         with st.expander(r"ℹ️ **Technical Note: Field Smoothing Scale ($\sigma$) & Performance**", expanded=False):
@@ -1328,6 +1365,7 @@ with domain_3:
             * **Zero-Dark-Matter Optical Deflection:** Bends light rays using only visible baryonic mass ($M_{\text{baryon}}$) plus a linear metric unspooling tax ($\theta_{\text{scaffold}} \propto b$), eliminating particle dark matter halos.
             * **Eradication of NFW Dark Matter Halos:** Proves that standard cosmology misinterprets the linear unspooling tax as an artificial quadratic dark matter halo ($M_{\text{DM}} = \frac{a_\Omega b^2}{G} \propto b^2$).
             * **Zero-Parameter Physical Horizons:** Dynamically calculates $b_{\text{cross}}$ ($50\%$ deflection parity) and $b_{1:1}$ ($100\%$ total baryonic mass equivalence) for any target galaxy or cluster.
+            * **SZ-to-Lensing Hydrostatic Cluster Bias ($1 - b = 0.8203$):** Connects cluster-scale optical lensing directly to the 120-cell $S_8$ Compilation Filter ($\Omega_{m,\text{void}}/\Omega_{m,\text{global}} = 0.8203$, $-17.97\%$ weak-lensing mass deficit), displaying the $(1-b) M_B$ hydrostatic baseline at $M_B \ge 10^{12} M_\odot$.
 
             ---
             ### 🔬 Key Physical Mechanics
@@ -1504,6 +1542,75 @@ with domain_3:
         else:
             st.info("⚙️ **Ready to Compute:** Select lensing mode above and click **🚀 Execute Gravitational Lensing Analysis**.")
 
+    # 12. S8 WEAK LENSING TENSION
+    elif "S8 Weak Lensing" in sub_3:
+        st.header(r"Environmental $S_8$ Weak Lensing Tension Observatory")
+        st.info(
+            r"⚖️ **Physical Principle:** In Substrate Logistics, the weak lensing vs. Planck CMB $S_8$ discrepancy arises directly "
+            r"from the 120-cell topological compilation filter at $\rho_{\text{GC}} = 4.0\text{ nodes/m}^3$. Uncompiled cosmic voids remain "
+            r"locked on the bare floor ($\Omega_{m,\text{void}} = 0.2183 \Rightarrow S_{8,\text{void}} = 0.7542$, matching KiDS-1000 & Subaru HSC), "
+            r"while compiled galaxy filaments/walls shift to $\Omega_{m,\text{global}} = 0.2661 \Rightarrow S_{8,\text{global}} = 0.8327$ (Planck CMB) "
+            r"and cluster cores saturate at $S_{8,\text{core}} = 0.8603$ (eROSITA X-Ray), generating the exact $(1-b) = 0.8203$ cluster mass bias."
+        )
+
+        with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
+            st.markdown(r"""
+            ### What This Module Demonstrates
+            * **4-Tier Hardware Partitioning:** Eliminates arbitrary structure-growth suppression models by computing $S_8(\vec{r}) = \sigma_{8,\text{void}} \sqrt{\Omega_m(\vec{r}) / 0.300}$ straight from 3D compiled node density $\rho_N(\vec{r})$.
+            * **Zero-Parameter Survey Reconciliation:** Maps catalog galaxies alongside KiDS-1000 ($0.766$), Subaru HSC Y3 ($0.769$), DES Y6 ($0.789$), KiDS Legacy ($0.815$), Planck CMB ($0.832$), and eROSITA X-Ray ($0.860$) benchmarks.
+            * **Hydrodynamic SZ-to-Lensing Cluster Bias ($1 - b = 0.8203$):** Derives the $-17.97\%$ weak-lensing cluster mass deficit analytically as $\Omega_{m,\text{void}} / \Omega_{m,\text{global}}$.
+
+            ---
+            ### 🔬 Key Physical Mechanics
+            * **Local Matter Partition Activation ($\theta_{\text{act}}$):**
+              $$\Omega_m(\vec{r}) = \Omega_{m,\text{void}} + \left(\Omega_{m,\text{global}} - \Omega_{m,\text{void}}\right)\theta_{\text{act}}(\rho_N), \quad S_8(\vec{r}) = \sigma_{8,\text{void}}\sqrt{\frac{\Omega_m(\vec{r})}{0.300}}$$
+              * *Smooth Volume Fraction:* $\theta_{\text{act}} = \rho_N / (\rho_N + \rho_{\text{GC,exact}})$
+              * *Strict Heaviside Step:* $\theta_{\text{act}} = \Theta(\rho_N - 4.0)$
+
+            ---
+            ### ⚙️ Interactive Controls & Parameter Reference
+            * **Halo Smoothing Scale ($\sigma_{\text{halo}}$ [Mpc]):** Aperture scale for vectorized `get_compiled_node_density_batch(...)` evaluation ($0.05\text{ Mpc}$ default resolves dwarf vs. spiral halo compilation contrast in the Local Volume).
+            * **Compilation Activation Filter:** Switch between coarse-grained volume fraction smoothing and strict integer $\rho_N \ge 4.0$ Heaviside switching.
+            * **2D Equatorial Slice Extent [Mpc]:** Spatial half-width $[-L, +L]$ for the equatorial plane $Z=0$ map.
+            """)
+
+        col_s8_1, col_s8_2, col_s8_3 = st.columns(3)
+        sigma_halo_input = col_s8_1.slider(
+            "Halo Smoothing Scale σ_halo [Mpc]",
+            min_value=0.02, max_value=2.00, value=0.05, step=0.01,
+            help="Vectorized 3D Gaussian halo aperture scale used to evaluate local compiled node density rho_N."
+        )
+        activation_mode_input = col_s8_2.selectbox(
+            "Compilation Activation Filter",
+            ["Smooth Volume Fraction (Coarse-Grained)", "Strict Heaviside Step Θ(ρ_N - 4.0)"]
+        )
+        slice_max = float(max(10.0, min(60.0, d_max_input)))
+        slice_min = 5.0 if slice_max > 5.0 else 1.0
+        slice_default = float(min(15.0, slice_max))
+        slice_extent_input = col_s8_3.slider(
+            "2D Equatorial Slice Extent [Mpc]",
+            min_value=slice_min, max_value=slice_max, value=slice_default, step=2.5
+        )
+
+        run_s8 = st.button("🚀 Execute S8 Weak Lensing Tension Analysis", type="primary", use_container_width=True)
+        m_key_s8 = "mod_res_s8_tension"
+
+        if run_s8:
+            with st.spinner("Evaluating vectorized S8(r) structure growth field across active catalog..."):
+                fig_s8, df_s8, s8_metrics = run_s8_tension_analysis(
+                    tree, gal_positions, nodes_per_galaxy, gal_names,
+                    sigma_halo_mpc=sigma_halo_input,
+                    activation_mode=activation_mode_input,
+                    slice_extent_mpc=slice_extent_input,
+                )
+                st.session_state[m_key_s8] = (fig_s8, df_s8, s8_metrics)
+
+        if m_key_s8 in st.session_state:
+            fig_s8, df_s8, s8_metrics = st.session_state[m_key_s8]
+            display_module_outputs(fig_s8, df_s8, s8_metrics, "substrate_s8_weak_lensing_field.csv")
+        else:
+            st.info("⚙️ **Ready to Compute:** Configure halo smoothing scale and activation filter above, then click **🚀 Execute S8 Weak Lensing Tension Analysis**.")
+
 # ------------------------------------------------------------------------------
 # DOMAIN 4: MASTER REGULATORY PROTOCOL & BANDWIDTH ALLOCATION
 # ------------------------------------------------------------------------------
@@ -1511,8 +1618,9 @@ with domain_4:
     sub_4 = st.radio(
         "Select Module:",
         [
-            "🗑️ Spatial Address Garbage Collection Engine", 
-            "⏱️ CPU Bandwidth Throttling & Clock Dilation"
+            "🗑️ Spatial Address Garbage Collection Engine",
+            "⏱️ CPU Bandwidth Throttling & Clock Dilation",
+            "🔥 Topological Drag Pressure Floor (P_δ)",
         ],
         horizontal=True
     )
@@ -1531,8 +1639,9 @@ with domain_4:
             st.markdown(r"""
             ### What This Module Demonstrates
             * **Zero-Energy Memory Purge ($E = 0$):** Demonstrates that gravity is zero-energy spatial address deletion. Empty coordinate pointers are purged from the metric index without emitting messenger particles, eliminating the graviton category error.
-            * **Discrete Pixel Purge Rate ($\dot{N}_{\text{pixels}}$):** Evaluates exact sub-node voxel deletions ($V_{\text{node}} = \bar{\lambda}_p^3 = 9.301 \times 10^{-48}\text{ m}^3$) per second across boundary surfaces (e.g., $6.1328 \times 10^{65}\text{ px/s}$ for Earth).
+            * **Discrete Pixel Purge Rate ($\dot{N}_{\text{pixels}}$):** Evaluates exact sub-node voxel deletions ($V_{\text{node}} = \bar{\lambda}_p^3 = 9.3019 \times 10^{-48}\text{ m}^3$) per second across boundary surfaces (e.g., $6.1329 \times 10^{65}\text{ px/s}$ for Earth).
             * **Coordinate Inflow & Escape Velocity Equivalence ($v_{\text{inflow}} = v_{\text{escape}}$):** Proves that spatial address inflow velocity $v_{\text{inflow}} = \sqrt{2 g_\Omega R}$ is physically identical to classical escape velocity, while low-orbit bypass speed evaluates to $v_{\text{orbit}} = \sqrt{g_\Omega R} = v_{\text{escape}} / \sqrt{2}$.
+            * **Top-Down Quantum Boundary & Magnetospheric Shells:** Evaluates exact Top-Down Quantum Radius $R_{\text{quantum}} = (c\bar{\lambda}_p)/(\mathcal{T}_\Omega\sqrt{(\bar{\lambda}_p/N)g_\Omega})$ ($6,371.20\text{ km}$ for Earth), annotates non-black-hole profiles with Plasmapause ($3R$), Van Allen ($4R$), and Drag Stagnation ($6.784R$) shells, and highlights black-hole Kernel Locks ($\Gamma$-Phase Matter $\to$ I-Phase Radiation Cache Flush at $R_{\text{EH}}$).
             * **Kernel Lock Safety Margin & $1.0c$ Horizon Limit:** Calculates remaining processing headroom $\max(0, 1.0 - v/c) \times 100\%$. Sub-light objects preserve wide safety margins (e.g., $99.9963\%$ for Earth at $0.0037\%$ capacity), whereas black hole horizons lock down at $100\%$ capacity ($0.0000\%$ margin) right at $1.0c$.
 
             ---
@@ -1684,3 +1793,63 @@ with domain_4:
             )
         else:
             st.info("⚙️ **Ready to Compute:** Select a benchmark above and click **🚀 Execute CPU Bandwidth Throttling Analysis**.")
+
+    elif "Topological Drag" in sub_4:
+        st.header(r"Topological Drag Pressure Floor ($P_\delta$) — 4-Regime Observatory")
+        st.info(
+            r"🔥 **Physical Principle:** Multiplying the microscopic and macroscopic Hardware Energy Ledgers ($\epsilon_{\max}, \Sigma_0$) by the single "
+            r"algebraic 120-cell topological drag coefficient $\mathcal{C}_\delta = (\sqrt{5}-2)/500 = 4.72136 \times 10^{-4}$ derives all four physical confinement regimes "
+            r"without free parameters: **I. Hadronic Confinement** ($B_{\text{QCD}} = 47.624\text{ MeV/fm}^3$, $m_\pi = 138.31\text{ MeV}$, $r_Y = 1.427\text{ fm}$), "
+            r"**II. Planetary Magnetospheres** ($3R$, $4R$, $6.784R$ stagnation limit), **III. Heliosphere & Outer Oort Core** ($R_{\text{TS}} = 89.44\text{ AU}$, $R_{\text{HP}} = 120.74\text{ AU}$, "
+            r"solar $R_g = 2,431\text{ AU}$, $R_\delta = 16,491\text{ AU}$), and **IV. Galactic Disk Truncations** ($R_{\text{trunc}} = 3.8291 R_d$, Fermi/eROSITA nuclear bubbles, and exact circumgalactic $R_{\text{GC}}$)."
+        )
+
+        with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
+            st.markdown(r"""
+            ### What This Module Demonstrates
+            * **38 Orders of Magnitude Scale-Invariance:** Connects proton femtometer confinement ($0.21\text{--}1.43\text{ fm}$) through terrestrial magnetospheres and the heliosphere out to the Milky Way circumgalactic halo cutoff ($525.55\text{ kpc}$ at $6.0 \times 10^{10} M_\odot$) across 46 orders of magnitude in pressure.
+            * **11-Galaxy Zero-Parameter Disk Cutoff Law:** Tests $R_{\text{trunc}} = \frac{1}{2}\ln(1/\mathcal{C}_\delta) R_d = 3.8291 R_d$ against 11 benchmark spirals (`UGC 7321` through `UGC 2885`).
+            * **Heliosphere vs. Solar Gravity Separation:** Shows plasma ram pressure hitting $P_{\delta,\text{macro}} = 0.2834\text{ pPa}$ at $89.44 / 120.74\text{ AU}$ while Solar gravitational deletion stress stays pure Keplerian until $R_g^\odot = 2,431\text{ AU}$ / $R_\delta^\odot = 16,491\text{ AU}$.
+
+            ---
+            ### 🔬 Key Physical Mechanics
+            * **Micro & Macro Pressure Floors:**
+              $$P_{\delta,\text{micro}} = \mathcal{C}_\delta \epsilon_{\max} \equiv 47.624\ \text{MeV/fm}^3, \quad P_{\delta,\text{macro}} = \mathcal{C}_\delta \Sigma_0 = 2.8339 \times 10^{-13}\ \text{Pa}$$
+            * **Circumgalactic Halo Garbage-Collection Cutoff:**
+              $$R_{\text{GC}} = \left(\frac{3 M}{4\pi \rho_{\text{Ledger}}}\right)^{1/3}$$
+
+            ---
+            ### ⚙️ Interactive Controls & Parameter Reference
+            * **Solar Wind Density $n_{\text{SW}}(1\text{ AU})$ & Speed $v_{\text{SW}}$:** Updates live Heliospheric Termination Shock ($R_{\text{TS}}$) and Heliopause ($1.35 R_{\text{TS}}$) crossings against Voyager 1 & 2 benchmarks.
+            * **Planetary Core Radius [km]:** Scales $1R, 3R, 4R, 6.784R$ magnetospheric boundary shells (default Earth $6,371.2\text{ km} \Rightarrow 43,222\text{ km}$).
+            * **Milky Way Disk Scale $R_d$ & Baryonic Mass [$10^{10} M_\odot$]:** Updates Fermi ($3 R_d$), eROSITA ($4 R_d$) nuclear bubble heights, disk cliff, and exact cube-root halo cutoff $R_{\text{GC}}$.
+            """)
+
+        col_pd1, col_pd2, col_pd3 = st.columns(3)
+        n_sw_input = col_pd1.slider("Solar Wind Density n_SW(1 AU) [cm⁻³]", 3.0, 15.0, 7.0, 0.5)
+        v_sw_input = col_pd2.slider("Solar Wind Speed v_SW [km/s]", 300.0, 700.0, 440.0, 10.0)
+        planet_r_input = col_pd3.number_input("Planetary Core Radius [km]", min_value=500.0, max_value=100000.0, value=6371.2, step=100.0, format="%.1f")
+
+        col_pd4, col_pd5 = st.columns(2)
+        mw_rd_input = col_pd4.slider("Milky Way Disk Scale R_d [kpc]", 2.0, 4.0, 2.85, 0.05)
+        mw_mass_10_input = col_pd5.slider("Milky Way Baryonic Mass [10¹⁰ M☉]", 2.0, 12.0, 6.0, 0.5)
+
+        run_pd = st.button("🚀 Execute 4-Regime Pressure Floor Analysis", type="primary", use_container_width=True)
+        m_key_pd = "mod_res_p_delta_floor"
+
+        if run_pd:
+            with st.spinner("Computing 4-regime Topological Drag Pressure Floor (P_delta) diagnostics..."):
+                fig_pd, df_pd, pd_metrics = run_topological_drag_floor_analysis(
+                    n_sw_1au_cm3=n_sw_input,
+                    v_sw_kms=v_sw_input,
+                    planet_radius_km=planet_r_input,
+                    mw_disk_rd_kpc=mw_rd_input,
+                    mw_mass_solar=mw_mass_10_input * 1e10,
+                )
+                st.session_state[m_key_pd] = (fig_pd, df_pd, pd_metrics)
+
+        if m_key_pd in st.session_state:
+            fig_pd, df_pd, pd_metrics = st.session_state[m_key_pd]
+            display_module_outputs(fig_pd, df_pd, pd_metrics, "substrate_topological_drag_pressure_floor.csv")
+        else:
+            st.info("⚙️ **Ready to Compute:** Configure Solar Wind, Planetary, and Milky Way parameters above, then click **🚀 Execute 4-Regime Pressure Floor Analysis**.")

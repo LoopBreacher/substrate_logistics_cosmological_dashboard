@@ -15,12 +15,12 @@ Physical Mechanics:
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from scipy.integrate import simpson
+from scipy.integrate import cumulative_trapezoid
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 
 from .data_loader import (
-    get_hlocal,
+    get_hlocal_batch,
     H_GLOBAL
 )
 from .substrate_bulk_flow_field import compute_line_of_sight_peculiar_velocity
@@ -66,12 +66,14 @@ def solve_line_of_sight_kinematics(
     
     # 1. Integrate H_local along ray trajectory out to d_max_search
     s_array = np.linspace(0.001, d_max_search, n_steps)
-    h_samples = np.array([
-        get_hlocal(tree, gal_positions, nodes_per_galaxy, s * cart_dir, sigma_mpc=sigma_mpc, h_global=h_global)
-        for s in s_array
-    ])
-    
-    cz_accumulated = np.array([simpson(h_samples[:i], x=s_array[:i]) for i in range(2, n_steps + 1)])
+    ray_pts = np.outer(s_array, cart_dir)
+    h_samples = get_hlocal_batch(
+        tree, gal_positions, nodes_per_galaxy, ray_pts,
+        sigma_mpc=sigma_mpc, h_global=h_global
+    )
+
+    cz_full = cumulative_trapezoid(h_samples, x=s_array, initial=0.0)
+    cz_accumulated = cz_full[1:]
     s_eval = s_array[1:]
     
     # 2. Forward Kinematics (Benchmark Distance Evaluation)
