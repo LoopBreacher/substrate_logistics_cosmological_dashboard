@@ -59,8 +59,21 @@ from modules.data_loader import (
     M_PION_MEV,
     R_YUKAWA_FM,
     DISK_TRUNCATION_RATIO,
+    M_PROTON,
+    M_SOLAR_KG,
+    E_RYD_J,
+    T_LOCK_RYD_K,
+    M_B_SUN,
+    M_K_SUN,
+    M_W1_SUN,
+    M_L_B,
+    M_L_K,
+    M_L_W1,
     R_GAL_TO_ICRS,
     galactic_to_icrs_vecs,
+    compute_multiband_stellar_nodes,
+    load_density_tree,
+    get_catalog_photometry_stats,
 )
 from modules.substrate_directional_correction_field import run_anisotropic_sky_forecast
 from modules.line_of_sight_kinematics import run_line_of_sight_kinematics_analysis
@@ -78,15 +91,29 @@ from modules.substrate_cmb_dipole_anomaly import run_cmb_dipole_analysis
 from modules.substrate_galactic_lensing import run_lensing_analysis
 from modules.spatial_garbage_collection_engine import run_spatial_garbage_collection_analysis
 from modules.cpu_bandwidth_throttling import run_cpu_bandwidth_throttling_analysis
-from modules.substrate_s8_tension import run_s8_tension_analysis
+from modules.substrate_s8_tension import run_s8_tension_analysis, run_two_condition_phase_audit
 from modules.substrate_topological_drag_floor import run_topological_drag_floor_analysis
 
 
-def load_local_catalog():
-    """Loads the largest available local .npz catalog cache without network access."""
+def load_local_catalog(mass_mode="multiband"):
+    """
+    Loads the largest available catalog using load_density_tree (v2 multi-band cache or v1 offline fallback),
+    falling back to local .npz caches or synthetic data only if VizieR and local caches are unavailable.
+    """
+    try:
+        tree, gal_pos, nodes, X, Y, Z, names = load_density_tree(
+            "Cosmicflows-4 (Extended ≤ 150 Mpc)", d_max_mpc=150.0, mass_mode=mass_mode
+        )
+        return "Cosmicflows-4", 150.0, 2.0, tree, gal_pos, nodes, X, Y, Z, names
+    except Exception:
+        pass
+
     candidates = [
+        ("Cosmicflows-4", "cf4_catalog_cache_v2.npz", 150.0, 2.0),
         ("Cosmicflows-4", "cf4_catalog_cache.npz", 150.0, 2.0),
+        ("2M++ Infrared", "twompp_catalog_cache_v2.npz", 200.0, 2.5),
         ("2M++ Infrared", "twompp_catalog_cache.npz", 200.0, 2.5),
+        ("UNG 2013", "ung_catalog_cache_v2.npz", 35.0, 1.8),
         ("UNG 2013", "ung_catalog_cache.npz", 35.0, 1.8),
     ]
     modules_dir = os.path.join(REPO_ROOT, "modules")
@@ -95,7 +122,12 @@ def load_local_catalog():
         if os.path.exists(fpath):
             data = np.load(fpath)
             gal_pos_all = data["gal_positions"]
-            nodes_all = data["nodes_per_galaxy"]
+            if mass_mode == "multiband" and "nodes_multiband" in data:
+                nodes_all = data["nodes_multiband"]
+            elif mass_mode != "multiband" and "nodes_legacy" in data:
+                nodes_all = data["nodes_legacy"]
+            else:
+                nodes_all = data["nodes_per_galaxy"]
             X_all, Y_all, Z_all = data["X"], data["Y"], data["Z"]
             if "gal_names" in data:
                 names_all = data["gal_names"]
@@ -186,8 +218,8 @@ def validate_module_output(name, res):
 def run_benchmark():
     verify_constants_and_frames()
 
-    cat_label, d_max, sigma_default, tree, gal_pos, nodes, X, Y, Z, names = load_local_catalog()
-    print(f"## 2. Headless 18-Module Benchmark ({cat_label}, N={len(gal_pos):,}, d_max={d_max:.0f} Mpc, sigma={sigma_default:.1f} Mpc)\n")
+    cat_label, d_max, sigma_default, tree, gal_pos, nodes, X, Y, Z, names = load_local_catalog(mass_mode="multiband")
+    print(f"## 2. Headless 18-Module Benchmark ({cat_label} [Multi-Band], N={len(gal_pos):,}, d_max={d_max:.0f} Mpc, sigma={sigma_default:.1f} Mpc)\n")
 
     d_depth = min(15.0, d_max)
     d_bao = min(round(R_BAO_MPC, 2), d_max)
@@ -327,6 +359,24 @@ def run_benchmark():
     assert 0.7541 <= float(m_s8_st["Catalog Mean <S8>"]) <= 0.8327, m_s8_st
     assert "0.8203" in m_s8_sm["SZ-Lensing Bias (1 - b)"], m_s8_sm
 
+    # Two-Condition Compilation Gate Regression Guards
+    assert abs(E_RYD_J / 1.602176634e-19 - 13.605693) < 1e-4, f"Unexpected E_RYD_J: {E_RYD_J}"
+    assert abs(T_LOCK_RYD_K - 105258.34) < 1.0, f"Unexpected T_LOCK_RYD_K: {T_LOCK_RYD_K}"
+    df_phase, m_phase = validate_module_output("TwoCondition_PhaseGate", run_two_condition_phase_audit())
+    verdicts = dict(zip(df_phase["Regime"], df_phase["Verdict"]))
+    expected_passive = [
+        "Cosmic Void", "Diffuse IGM", "Dense WHIM Filament", "Cluster Outskirts (r500)",
+        "Hot Galactic Halo / CGM", "Non-Cool-Core Coma", "Cool-Core Perseus (20 kpc)", "Solar Wind (1 AU)",
+    ]
+    expected_compiled = [
+        "Cool-Core Perseus (5 kpc)", "Cool-Core H-alpha Filaments", "DDO 154 HI Disk", "Cold ISM / GMC",
+        "99942 Apophis", "Earth", "Sun", "Crab Pulsar",
+    ]
+    for reg in expected_passive:
+        assert verdicts[reg] == "PASSIVE (0)", f"Expected PASSIVE (0) for {reg}, got {verdicts[reg]}"
+    for reg in expected_compiled:
+        assert verdicts[reg] == "COMPILED (1)", f"Expected COMPILED (1) for {reg}, got {verdicts[reg]}"
+
     df18, m_pd = captured["18. Topological Drag Floor (P_δ)"]
     assert m_pd["MIT Bag Floor (B_QCD)"] == "47.62 MeV/fm³", m_pd
     assert m_pd["Derived Pion / Yukawa"] == "138.31 MeV | 1.427 fm", m_pd
@@ -342,10 +392,89 @@ def run_benchmark():
     print(f"- **Earth GC:** `g_Omega={m_earth_gc['Surface Acceleration (g_Ω)']}` | Purge Rate: `{m_earth_gc['Surface Pixel Purge Rate']}` | `R_quantum={m_earth_gc['Top-Down Quantum Radius']}` | Sgr A*: `{m_sgra_gc['Kernel Lock Safety Margin']}`")
     print(f"- **Lensing Cluster Bias:** `1 - b = {m_lens['SZ-Lensing Cluster Bias (1-b)']}` (PASS)")
     print(f"- **S8 Weak Lensing ({cat_label}):** Smooth `<S8>={m_s8_sm['Catalog Mean <S8>']}` | Strict `<S8>={m_s8_st['Catalog Mean <S8>']}` | Tiers `{m_s8_sm['Void Floor (S8_void)']} / {m_s8_sm['Global Baseline (S8_global)']} / {m_s8_sm['Cluster Core (S8_core)']}`")
+    print(f"- **Two-Condition Phase Gate:** `T_lock={T_LOCK_RYD_K:,.2f} K` (`{m_phase['Benchmarks Compiled']}`, 8 PASSIVE / 8 COMPILED PASS) | Cool-Core `r_lock={m_phase['Cool-Core Crossover (r_lock)']}`")
     print(f"- **P_delta 4-Regime Floor:** `B_QCD={m_pd['MIT Bag Floor (B_QCD)']}` | `Pion/Yukawa={m_pd['Derived Pion / Yukawa']}` | `TS/HP={m_pd['Shock / Heliopause']}` | `Disk/Bubbles={m_pd['Disk Cliff / Bubbles']}` | `R_GC={r_gc_val:.2f} kpc`")
     print(f"- **Atomic Clock Drift (vs Earth):** GPS `{m_gps['Relative Drift vs Earth']}` | ISS `{m_iss['Relative Drift vs Earth']}`")
     print(f"- **SNe Ia Agreement:** `om=0.315` -> `{m_sne_std['Substrate vs ΛCDM Agreement']}` | `OMEGA_M_GLOBAL={OMEGA_M_GLOBAL:.4f}` -> `{m_sne_gl['Substrate vs ΛCDM Agreement']}`")
-    print(f"- **CMB Shifted Dipole ({cat_label}):** Axis `{m_cmb_1['Shifted Dipole Axis (l, b)']}` | Amp `{m_cmb_1['Combined Dipole Amplitude']}` | Sub-catalog cache switch PASS (`{m_cmb_1['Substrate Anisotropy Range']}` vs `{m_cmb_2['Substrate Anisotropy Range']}`)")
+    print(f"- **CMB Shifted Dipole ({cat_label}):** Axis `{m_cmb_1['Shifted Dipole Axis (l, b)']}` | Amp `{m_cmb_1['Combined Dipole Amplitude']}` | Sub-catalog cache switch PASS (`{m_cmb_1['Substrate Anisotropy Range']}` vs `{m_cmb_2['Substrate Anisotropy Range']}`)\n")
+
+    run_photometric_mass_audit()
+
+
+def run_photometric_mass_audit():
+    """
+    Section 4: Verifies multi-band photometric priority tiers & compares Legacy vs. Multi-Band
+    Local Volume (10 Mpc) rho_N, H_local, and Module 17 <S8> across active surveys.
+    """
+    print("## 4. Photometric Mass Audit (Legacy Constant M/L vs. Multi-Band Pipeline)\n")
+
+    # 4.1 Vectorized 4-tier priority unit test (including -100 invalid magnitude sentinel)
+    dist_u = np.array([10.0, 10.0, 10.0, 10.0, 10.0])
+    b_u = np.array([12.0, 12.0, 12.0, 12.0, 12.0])
+    v_u = np.array([11.2, 11.2, 11.2, np.nan, np.nan])
+    k_u = np.array([8.5, np.nan, -100.0, np.nan, np.nan])
+    w1_u = np.array([8.4, 8.4, -100.0, np.nan, np.nan])
+    nodes_u, src_u = compute_multiband_stellar_nodes(dist_u, b_u, v_u, k_u, w1_u, M_L_B, M_B_SUN)
+    assert np.array_equal(src_u, np.array([1, 2, 3, 4, 4], dtype=np.int8)), f"Unexpected sources: {src_u}"
+    assert np.all(np.isfinite(nodes_u) & (nodes_u > 0.0)), f"Non-finite/non-positive nodes: {nodes_u}"
+
+    # Verify exact analytical scaling for Tier 3 Bell+03 (B-V=0.8) vs Tier 4 Legacy (M/L_B=0.44)
+    expected_ml_b_tier3 = np.clip(10.0 ** (-0.942 + 1.737 * 0.8 - 0.15), 0.10, 4.00)
+    assert abs((nodes_u[2] / nodes_u[3]) - (expected_ml_b_tier3 / M_L_B)) < 1e-12, "Bell+03 M/L ratio mismatch"
+    # Verify K-band & WISE W1 analytic luminosities (at 10.0 Mpc, DM = 5*log10(10*1e5) = 30.0)
+    dm_10 = 5.0 * np.log10(10.0 * 1.0e5)
+    expected_n_k = (10.0 ** (0.4 * (M_K_SUN - (8.5 - dm_10)))) * M_L_K * M_SOLAR_KG / M_PROTON
+    expected_n_w1 = (10.0 ** (0.4 * (M_W1_SUN - (8.4 - dm_10)))) * M_L_W1 * M_SOLAR_KG / M_PROTON
+    assert abs(nodes_u[0] / expected_n_k - 1.0) < 1e-12, "Tier 1 K-band mismatch"
+    assert abs(nodes_u[1] / expected_n_w1 - 1.0) < 1e-12, "Tier 2 WISE W1 mismatch"
+    print("- **4-Tier Photometric Priority Unit Test:** `[1=K, 2=W1, 3=Bell+03 B-V, 4=Fallback, 4=-100 Sentinel]` -> **PASS**\n")
+
+    # 4.2 Catalog comparison: Cosmicflows-4 and UNG 2013
+    print("| Catalog | Mode | N | Cache | Photometry Breakdown | rho_N(<=10 Mpc) [nodes/m^3] | H_local(<=10 Mpc) [km/s/Mpc] | Module 17 `<S8>` |")
+    print("| :--- | :--- | ---: | :--- | :--- | ---: | ---: | ---: |")
+    audit_notes = []
+    for cat_name, d_lim in [
+        ("UNG 2013 (Local Volume ≤ 35 Mpc)", 35.0),
+        ("Cosmicflows-4 (Extended ≤ 150 Mpc)", 150.0),
+    ]:
+        short_cat = cat_name.split(" (")[0]
+        try:
+            res_by_mode = {}
+            for m_mode in ("legacy", "multiband"):
+                t_c, p_c, n_c, _, _, _, nam_c = load_density_tree(cat_name, d_max_mpc=d_lim, mass_mode=m_mode)
+                stats_c = get_catalog_photometry_stats(cat_name, d_max_mpc=d_lim, mass_mode=m_mode, r_local_mpc=10.0)
+                _, m_s8_c = validate_module_output(
+                    f"Audit_{short_cat}_{m_mode}",
+                    run_s8_tension_analysis(
+                        t_c, p_c, n_c, nam_c,
+                        sigma_halo_mpc=0.05,
+                        activation_mode="Smooth Volume Fraction (Coarse-Grained)",
+                        slice_extent_mpc=min(15.0, d_lim),
+                    ),
+                )
+                res_by_mode[m_mode] = (stats_c, m_s8_c)
+                print(
+                    f"| {short_cat} | `{m_mode}` | {stats_c['total_galaxies']:,} | `{stats_c['cache_version']}` | "
+                    f"{stats_c['summary_str'].replace('Photometry: ', '').replace('Photometry (v2): ', '')} | "
+                    f"{stats_c['rho_N_10mpc']:.5f} | {stats_c['h_local_10mpc']:.2f} | {m_s8_c['Catalog Mean <S8>']} |"
+                )
+
+            st_leg, _ = res_by_mode["legacy"]
+            st_mb, _ = res_by_mode["multiband"]
+            d_h_mb_shoes = st_mb["h_local_10mpc"] - 73.04
+            d_h_mb_trgb = st_mb["h_local_10mpc"] - 69.80
+            audit_notes.append(
+                f"- **{short_cat} 10 Mpc Sensitivity:** Multi-Band `H_local={st_mb['h_local_10mpc']:.2f}` vs. "
+                f"Legacy `{st_leg['h_local_10mpc']:.2f} km/s/Mpc` "
+                f"(vs. SH0ES `73.04±1.04`: `{d_h_mb_shoes:+.2f}`, vs. CCHP TRGB `69.8±1.9`: `{d_h_mb_trgb:+.2f}` km/s/Mpc)."
+            )
+        except Exception as exc:
+            print(f"| {short_cat} | unavailable | — | — | `{type(exc).__name__}: {exc}` | — | — | — |")
+
+    if audit_notes:
+        print()
+        for note in audit_notes:
+            print(note)
 
 
 if __name__ == "__main__":

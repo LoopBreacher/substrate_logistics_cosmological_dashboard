@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 # 1. Import shared catalog loader
 from modules.data_loader import (
     load_density_tree,
+    get_catalog_photometry_stats,
     H_GLOBAL,
     K_OMEGA,
     T_OMEGA,
@@ -41,7 +42,7 @@ from modules.spatial_garbage_collection_engine import run_spatial_garbage_collec
 from modules.cpu_bandwidth_throttling import run_cpu_bandwidth_throttling_analysis, THROTTLING_PRESETS
 from modules.substrate_3d_density_viewer import run_3d_density_viewer_analysis
 from modules.substrate_3d_dark_energy import run_3d_dark_energy_analysis, PHYSICAL_ENVIRONMENTS_DE
-from modules.substrate_s8_tension import run_s8_tension_analysis
+from modules.substrate_s8_tension import run_s8_tension_analysis, run_two_condition_phase_audit
 from modules.substrate_topological_drag_floor import run_topological_drag_floor_analysis
 
 # ==========================================
@@ -235,6 +236,15 @@ d_max_input = st.sidebar.slider(
     min_value=10.0, max_value=max_depth_limit, value=default_depth, step=5.0
 )
 
+mass_mode_label = st.sidebar.radio(
+    "Stellar Mass-to-Light Pipeline",
+    ["Multi-Band / Color-Dependent (Recommended)", "Legacy Constant M/L (Paper Baseline)"],
+    index=0,
+    help="Multi-Band prioritizes near-IR K_s (M/L_K=0.60) and WISE W1 (M/L_W1=0.50), then Bell+03 B-V color, removing the global M/L_B=0.44 dial."
+)
+mass_mode = "multiband" if "Multi-Band" in mass_mode_label else "legacy"
+photo_caption_slot = st.sidebar.empty()
+
 h_global_input = st.sidebar.number_input(
     "Global Vacuum Floor $H_{\\mathrm{global}}$ [km/s/Mpc]",
     value=float(round(H_GLOBAL, 4)), min_value=60.0, max_value=100.0, step=0.1, format="%.4f"
@@ -288,7 +298,7 @@ st.sidebar.markdown(f"""
 """)
 
 # Invalidate cached module results if global catalog settings change
-catalog_state = f"{catalog_choice}_{d_max_input}_{h_global_input}_{sigma_smooth_input}"
+catalog_state = f"{catalog_choice}_{d_max_input}_{h_global_input}_{sigma_smooth_input}_{mass_mode}"
 if st.session_state.get("active_catalog_state") != catalog_state:
     st.session_state["active_catalog_state"] = catalog_state
     for k in list(st.session_state.keys()):
@@ -297,8 +307,12 @@ if st.session_state.get("active_catalog_state") != catalog_state:
 
 with st.spinner(f"Indexing 3D Density Tree for {catalog_choice.split()[0]}..."):
     tree, gal_positions, nodes_per_galaxy, X_gal, Y_gal, Z_gal, gal_names = load_density_tree(
-    catalog_name=catalog_choice, d_max_mpc=d_max_input
+        catalog_name=catalog_choice, d_max_mpc=d_max_input, mass_mode=mass_mode
     )
+photo_stats = get_catalog_photometry_stats(
+    catalog_name=catalog_choice, d_max_mpc=d_max_input, mass_mode=mass_mode
+)
+photo_caption_slot.caption(f"📊 {photo_stats['summary_str']}")
 
 st.title("🌌 Substrate Logistics: Cosmological Engine")
 st.markdown(f"""
@@ -1545,71 +1559,123 @@ with domain_3:
     # 12. S8 WEAK LENSING TENSION
     elif "S8 Weak Lensing" in sub_3:
         st.header(r"Environmental $S_8$ Weak Lensing Tension Observatory")
-        st.info(
-            r"⚖️ **Physical Principle:** In Substrate Logistics, the weak lensing vs. Planck CMB $S_8$ discrepancy arises directly "
-            r"from the 120-cell topological compilation filter at $\rho_{\text{GC}} = 4.0\text{ nodes/m}^3$. Uncompiled cosmic voids remain "
-            r"locked on the bare floor ($\Omega_{m,\text{void}} = 0.2183 \Rightarrow S_{8,\text{void}} = 0.7542$, matching KiDS-1000 & Subaru HSC), "
-            r"while compiled galaxy filaments/walls shift to $\Omega_{m,\text{global}} = 0.2661 \Rightarrow S_{8,\text{global}} = 0.8327$ (Planck CMB) "
-            r"and cluster cores saturate at $S_{8,\text{core}} = 0.8603$ (eROSITA X-Ray), generating the exact $(1-b) = 0.8203$ cluster mass bias."
-        )
+        tab_s8_field, tab_s8_gate = st.tabs([
+            "🗺️ 3D Catalog S8 Field & Survey Landscape",
+            "🔬 Two-Condition Compilation Gate (WHIM & Cool-Core ICM)",
+        ])
 
-        with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
-            st.markdown(r"""
-            ### What This Module Demonstrates
-            * **4-Tier Hardware Partitioning:** Eliminates arbitrary structure-growth suppression models by computing $S_8(\vec{r}) = \sigma_{8,\text{void}} \sqrt{\Omega_m(\vec{r}) / 0.300}$ straight from 3D compiled node density $\rho_N(\vec{r})$.
-            * **Zero-Parameter Survey Reconciliation:** Maps catalog galaxies alongside KiDS-1000 ($0.766$), Subaru HSC Y3 ($0.769$), DES Y6 ($0.789$), KiDS Legacy ($0.815$), Planck CMB ($0.832$), and eROSITA X-Ray ($0.860$) benchmarks.
-            * **Hydrodynamic SZ-to-Lensing Cluster Bias ($1 - b = 0.8203$):** Derives the $-17.97\%$ weak-lensing cluster mass deficit analytically as $\Omega_{m,\text{void}} / \Omega_{m,\text{global}}$.
+        with tab_s8_field:
+            st.info(
+                r"⚖️ **Physical Principle:** In Substrate Logistics, the weak lensing vs. Planck CMB $S_8$ discrepancy arises directly "
+                r"from the 120-cell topological compilation filter at $\rho_{\text{GC}} = 4.0\text{ nodes/m}^3$. Uncompiled cosmic voids remain "
+                r"locked on the bare floor ($\Omega_{m,\text{void}} = 0.2183 \Rightarrow S_{8,\text{void}} = 0.7542$, matching KiDS-1000 & Subaru HSC), "
+                r"while compiled galaxy filaments/walls shift to $\Omega_{m,\text{global}} = 0.2661 \Rightarrow S_{8,\text{global}} = 0.8327$ (Planck CMB) "
+                r"and cluster cores saturate at $S_{8,\text{core}} = 0.8603$ (eROSITA X-Ray), generating the exact $(1-b) = 0.8203$ cluster mass bias."
+            )
 
-            ---
-            ### 🔬 Key Physical Mechanics
-            * **Local Matter Partition Activation ($\theta_{\text{act}}$):**
-              $$\Omega_m(\vec{r}) = \Omega_{m,\text{void}} + \left(\Omega_{m,\text{global}} - \Omega_{m,\text{void}}\right)\theta_{\text{act}}(\rho_N), \quad S_8(\vec{r}) = \sigma_{8,\text{void}}\sqrt{\frac{\Omega_m(\vec{r})}{0.300}}$$
-              * *Smooth Volume Fraction:* $\theta_{\text{act}} = \rho_N / (\rho_N + \rho_{\text{GC,exact}})$
-              * *Strict Heaviside Step:* $\theta_{\text{act}} = \Theta(\rho_N - 4.0)$
+            with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
+                st.markdown(r"""
+                ### What This Module Demonstrates
+                * **4-Tier Hardware Partitioning:** Eliminates arbitrary structure-growth suppression models by computing $S_8(\vec{r}) = \sigma_{8,\text{void}} \sqrt{\Omega_m(\vec{r}) / 0.300}$ straight from 3D compiled node density $\rho_N(\vec{r})$.
+                * **Zero-Parameter Survey Reconciliation:** Maps catalog galaxies alongside KiDS-1000 ($0.766$), Subaru HSC Y3 ($0.769$), DES Y6 ($0.789$), KiDS Legacy ($0.815$), Planck CMB ($0.832$), and eROSITA X-Ray ($0.860$) benchmarks.
+                * **Hydrodynamic SZ-to-Lensing Cluster Bias ($1 - b = 0.8203$):** Derives the $-17.97\%$ weak-lensing cluster mass deficit analytically as $\Omega_{m,\text{void}} / \Omega_{m,\text{global}}$.
 
-            ---
-            ### ⚙️ Interactive Controls & Parameter Reference
-            * **Halo Smoothing Scale ($\sigma_{\text{halo}}$ [Mpc]):** Aperture scale for vectorized `get_compiled_node_density_batch(...)` evaluation ($0.05\text{ Mpc}$ default resolves dwarf vs. spiral halo compilation contrast in the Local Volume).
-            * **Compilation Activation Filter:** Switch between coarse-grained volume fraction smoothing and strict integer $\rho_N \ge 4.0$ Heaviside switching.
-            * **2D Equatorial Slice Extent [Mpc]:** Spatial half-width $[-L, +L]$ for the equatorial plane $Z=0$ map.
-            """)
+                ---
+                ### 🔬 Key Physical Mechanics
+                * **Local Matter Partition Activation ($\theta_{\text{act}}$):**
+                  $$\Omega_m(\vec{r}) = \Omega_{m,\text{void}} + \left(\Omega_{m,\text{global}} - \Omega_{m,\text{void}}\right)\theta_{\text{act}}(\rho_N), \quad S_8(\vec{r}) = \sigma_{8,\text{void}}\sqrt{\frac{\Omega_m(\vec{r})}{0.300}}$$
+                  * *Smooth Volume Fraction:* $\theta_{\text{act}} = \rho_N / (\rho_N + \rho_{\text{GC,exact}})$
+                  * *Strict Heaviside Step:* $\theta_{\text{act}} = \Theta(\rho_N - 4.0)$
 
-        col_s8_1, col_s8_2, col_s8_3 = st.columns(3)
-        sigma_halo_input = col_s8_1.slider(
-            "Halo Smoothing Scale σ_halo [Mpc]",
-            min_value=0.02, max_value=2.00, value=0.05, step=0.01,
-            help="Vectorized 3D Gaussian halo aperture scale used to evaluate local compiled node density rho_N."
-        )
-        activation_mode_input = col_s8_2.selectbox(
-            "Compilation Activation Filter",
-            ["Smooth Volume Fraction (Coarse-Grained)", "Strict Heaviside Step Θ(ρ_N - 4.0)"]
-        )
-        slice_max = float(max(10.0, min(60.0, d_max_input)))
-        slice_min = 5.0 if slice_max > 5.0 else 1.0
-        slice_default = float(min(15.0, slice_max))
-        slice_extent_input = col_s8_3.slider(
-            "2D Equatorial Slice Extent [Mpc]",
-            min_value=slice_min, max_value=slice_max, value=slice_default, step=2.5
-        )
+                ---
+                ### ⚙️ Interactive Controls & Parameter Reference
+                * **Halo Smoothing Scale ($\sigma_{\text{halo}}$ [Mpc]):** Aperture scale for vectorized `get_compiled_node_density_batch(...)` evaluation ($0.05\text{ Mpc}$ default resolves dwarf vs. spiral halo compilation contrast in the Local Volume).
+                * **Compilation Activation Filter:** Switch between coarse-grained volume fraction smoothing and strict integer $\rho_N \ge 4.0$ Heaviside switching.
+                * **2D Equatorial Slice Extent [Mpc]:** Spatial half-width $[-L, +L]$ for the equatorial plane $Z=0$ map.
+                """)
 
-        run_s8 = st.button("🚀 Execute S8 Weak Lensing Tension Analysis", type="primary", use_container_width=True)
-        m_key_s8 = "mod_res_s8_tension"
+            col_s8_1, col_s8_2, col_s8_3 = st.columns(3)
+            sigma_halo_input = col_s8_1.slider(
+                "Halo Smoothing Scale σ_halo [Mpc]",
+                min_value=0.02, max_value=2.00, value=0.05, step=0.01,
+                help="Vectorized 3D Gaussian halo aperture scale used to evaluate local compiled node density rho_N."
+            )
+            activation_mode_input = col_s8_2.selectbox(
+                "Compilation Activation Filter",
+                ["Smooth Volume Fraction (Coarse-Grained)", "Strict Heaviside Step Θ(ρ_N - 4.0)"]
+            )
+            slice_max = float(max(10.0, min(60.0, d_max_input)))
+            slice_min = 5.0 if slice_max > 5.0 else 1.0
+            slice_default = float(min(15.0, slice_max))
+            slice_extent_input = col_s8_3.slider(
+                "2D Equatorial Slice Extent [Mpc]",
+                min_value=slice_min, max_value=slice_max, value=slice_default, step=2.5
+            )
 
-        if run_s8:
-            with st.spinner("Evaluating vectorized S8(r) structure growth field across active catalog..."):
-                fig_s8, df_s8, s8_metrics = run_s8_tension_analysis(
-                    tree, gal_positions, nodes_per_galaxy, gal_names,
-                    sigma_halo_mpc=sigma_halo_input,
-                    activation_mode=activation_mode_input,
-                    slice_extent_mpc=slice_extent_input,
-                )
-                st.session_state[m_key_s8] = (fig_s8, df_s8, s8_metrics)
+            run_s8 = st.button("🚀 Execute S8 Weak Lensing Tension Analysis", type="primary", use_container_width=True)
+            m_key_s8 = "mod_res_s8_tension"
 
-        if m_key_s8 in st.session_state:
-            fig_s8, df_s8, s8_metrics = st.session_state[m_key_s8]
-            display_module_outputs(fig_s8, df_s8, s8_metrics, "substrate_s8_weak_lensing_field.csv")
-        else:
-            st.info("⚙️ **Ready to Compute:** Configure halo smoothing scale and activation filter above, then click **🚀 Execute S8 Weak Lensing Tension Analysis**.")
+            if run_s8:
+                with st.spinner("Evaluating vectorized S8(r) structure growth field across active catalog..."):
+                    fig_s8, df_s8, s8_metrics = run_s8_tension_analysis(
+                        tree, gal_positions, nodes_per_galaxy, gal_names,
+                        sigma_halo_mpc=sigma_halo_input,
+                        activation_mode=activation_mode_input,
+                        slice_extent_mpc=slice_extent_input,
+                    )
+                    st.session_state[m_key_s8] = (fig_s8, df_s8, s8_metrics)
+
+            if m_key_s8 in st.session_state:
+                fig_s8, df_s8, s8_metrics = st.session_state[m_key_s8]
+                display_module_outputs(fig_s8, df_s8, s8_metrics, "substrate_s8_weak_lensing_field.csv")
+            else:
+                st.info("⚙️ **Ready to Compute:** Configure halo smoothing scale and activation filter above, then click **🚀 Execute S8 Weak Lensing Tension Analysis**.")
+
+        with tab_s8_gate:
+            st.info(
+                r"🔬 **Two-Condition Compilation Gate:** Baryonic matter compiles into active $\Gamma$-phase nodes ($\Theta_{\text{compiled}} = 1$) "
+                r"if and only if **both** the spatial Garbage-Collection density ceiling ($\rho_N \ge 4.0\text{ nodes/m}^3$) **and** the Absolute Bandwidth "
+                r"Phase-Lock criterion ($\Lambda_{\text{lock}} = \frac{g_{\text{river}}^2 + g_{\text{EM}}^2}{v_{\text{th}}^2 + v_{\text{bulk}}^2} \ge 1.0$, "
+                r"anchored at $E_{\text{Ryd}} = 13.6057\text{ eV} \Rightarrow T_{\text{lock}} = 105,258\text{ K}$) are satisfied. Super-density hot plasmas like WHIM "
+                r"filaments, Coma's ICM, and the outbound Solar Wind pass Condition 1 yet fail Condition 2, remaining passive I-phase gas."
+            )
+
+            with st.expander("📖 **Interactive Phase-Gate Guide (WHIM & Cool-Core Clusters)**", expanded=False):
+                st.markdown(r"""
+                ### What This Phase-Gate Explorer Demonstrates
+                * **Zero Free Parameters Across 16 Benchmarks:** Evaluates voids, WHIM filaments, cluster outskirts, Non-Cool-Core Coma, Cool-Core Perseus (`20 kpc` vs `5 kpc`), `H-alpha` filaments, `DDO 154 HI`, GMCs, planets, stars, and pulsars from one unified lock law.
+                * **Electromagnetic Bohr Lock ($T_{\text{lock}} = 105,258\text{ K}$):** Below $T_{\text{lock}}$, atomic electromagnetic binding ($g_{\text{EM}}^2 = 2 E_{\text{Ryd}} / (\mu m_p c^2)$) maintains phase-lock even in low-gravity objects (`Apophis`, `Earth`, `ISM`); above $T_{\text{lock}}$, ionized plasma must rely on macro gravitational binding ($g_{\text{river}}^2 \ge v_{\text{disp}}^2$).
+                * **Cool-Core vs. Non-Cool-Core Cluster Prediction:** Cool-core Perseus crosses $\Lambda_{\mathrm{lock}} \ge 1.0$ inside $r \le 5.36\text{ kpc}$ near the central BCG while hot Non-Cool-Core Coma stays strictly passive ($\Lambda_{\mathrm{lock}} < 0.03$) throughout, yielding a falsifiable cluster mass bias $(1-b)$ test.
+                """)
+
+            col_pg1, col_pg2, col_pg3 = st.columns(3)
+            log_n_b = col_pg1.slider("ICM / Gas Density log10(n_b) [nodes/m³]", -2.0, 10.0, 4.70, 0.10)
+            log_t_k = col_pg2.slider("Gas Temperature log10(T) [K]", 1.0, 8.5, 7.18, 0.05)
+            custom_r_kpc = col_pg3.slider("Core Radius R [kpc]", 1.0, 250.0, 10.0, 1.0)
+
+            col_pg4, col_pg5 = st.columns(2)
+            custom_m_bcg = col_pg4.slider("Central BCG Stellar Mass [10¹¹ M☉]", 0.0, 10.0, 3.0, 0.25)
+            custom_v_bulk = col_pg5.slider("Bulk Outflow Speed v_bulk [km/s]", 0.0, 1500.0, 0.0, 20.0)
+
+            run_pg = st.button("🚀 Execute Two-Condition Compilation Gate Audit", type="primary", use_container_width=True)
+            m_key_pg = "mod_res_s8_phase_gate"
+
+            if run_pg:
+                with st.spinner("Evaluating 16-regime phase diagram & cool-core ICM transition..."):
+                    fig_pg, df_pg, pg_metrics = run_two_condition_phase_audit(
+                        custom_n_m3=10.0 ** log_n_b,
+                        custom_T_K=10.0 ** log_t_k,
+                        custom_R_kpc=custom_r_kpc,
+                        custom_M_bcg_11=custom_m_bcg,
+                        custom_v_bulk_kms=custom_v_bulk,
+                    )
+                    st.session_state[m_key_pg] = (fig_pg, df_pg, pg_metrics)
+
+            if m_key_pg in st.session_state:
+                fig_pg, df_pg, pg_metrics = st.session_state[m_key_pg]
+                display_module_outputs(fig_pg, df_pg, pg_metrics, "substrate_two_condition_phase_gate.csv")
+            else:
+                st.info("⚙️ **Ready to Compute:** Adjust gas density, temperature, radius, BCG mass, or bulk outflow speed above and click **🚀 Execute Two-Condition Compilation Gate Audit**.")
 
 # ------------------------------------------------------------------------------
 # DOMAIN 4: MASTER REGULATORY PROTOCOL & BANDWIDTH ALLOCATION

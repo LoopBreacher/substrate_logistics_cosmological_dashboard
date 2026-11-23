@@ -6,6 +6,10 @@ from scipy.stats import gaussian_kde
 from .data_loader import (
     M_PROTON,
     M_SOLAR_KG,
+    KPC_TO_METER,
+    AU_TO_METER,
+    E_RYD_J,
+    T_LOCK_RYD_K,
     OMEGA_M_VOID,
     OMEGA_L_VOID,
     OMEGA_M_GLOBAL,
@@ -18,6 +22,7 @@ from .data_loader import (
     RHO_GC_EXACT,
     RHO_GC_THRESHOLD,
     get_compiled_node_density_batch,
+    evaluate_two_condition_compilation_gate,
 )
 
 # Observational 2020-2026 Weak Lensing, CMB, and X-Ray Survey Benchmarks: (S8_obs, 1-sigma_err)
@@ -316,3 +321,246 @@ def run_s8_tension_analysis(
     }
 
     return fig, df_out, metrics_dict
+
+
+# ==========================================
+# TWO-CONDITION COMPILATION GATE (16 REGIMES & COOL-CORE ICM)
+# ==========================================
+PHASE_LOCK_BENCHMARKS = [
+    # Sub-threshold void floor (C1 = 0 -> PASSIVE)
+    {"name": "Cosmic Void",                 "rho_N_m3": 0.05,   "T_K": 1.0e4,   "R_m": 20.0e3 * KPC_TO_METER, "M_enc_kg": 1.0e10 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Diffuse IGM",                 "rho_N_m3": 0.50,   "T_K": 2.0e4,   "R_m": 5.0e3 * KPC_TO_METER,  "M_enc_kg": 1.0e11 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    # Super-density passive I-phase plasma (C1 = 1, C2 = 0 -> PASSIVE)
+    {"name": "Dense WHIM Filament",         "rho_N_m3": 20.0,   "T_K": 3.0e6,   "R_m": 1.5e3 * KPC_TO_METER,  "M_enc_kg": 1.0e13 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Cluster Outskirts (r500)",    "rho_N_m3": 2.0e2,  "T_K": 3.5e7,   "R_m": 1.2e3 * KPC_TO_METER,  "M_enc_kg": 6.0e13 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Hot Galactic Halo / CGM",     "rho_N_m3": 1.0e2,  "T_K": 2.0e6,   "R_m": 100.0 * KPC_TO_METER,  "M_enc_kg": 1.0e11 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Non-Cool-Core Coma",          "rho_N_m3": 3.5e3,  "T_K": 9.5e7,   "R_m": 250.0 * KPC_TO_METER,  "M_enc_kg": 1.5e13 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Cool-Core Perseus (20 kpc)",  "rho_N_m3": 4.0e4,  "T_K": 4.5e7,   "R_m": 20.0 * KPC_TO_METER,   "M_enc_kg": 6.0e11 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Solar Wind (1 AU)",           "rho_N_m3": 7.0e6,  "T_K": 1.2e5,   "R_m": 1.0 * AU_TO_METER,     "M_enc_kg": 1.0 * M_SOLAR_KG,    "mu_mol": 0.60, "v_bulk_ms": 440.0e3},
+    # Compiled phase-locked Gamma-phase matter (C1 = 1, C2 = 1 -> COMPILED)
+    {"name": "Cool-Core Perseus (5 kpc)",   "rho_N_m3": 1.5e5,  "T_K": 1.0e7,   "R_m": 5.0 * KPC_TO_METER,    "M_enc_kg": 4.0e11 * M_SOLAR_KG, "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Cool-Core H-alpha Filaments", "rho_N_m3": 1.0e7,  "T_K": 1.0e4,   "R_m": 2.0 * KPC_TO_METER,    "M_enc_kg": 2.5e11 * M_SOLAR_KG, "mu_mol": 1.00, "v_bulk_ms": 0.0},
+    {"name": "DDO 154 HI Disk",             "rho_N_m3": 2.0e5,  "T_K": 5.0e3,   "R_m": 3.0 * KPC_TO_METER,    "M_enc_kg": 3.5e8 * M_SOLAR_KG,  "mu_mol": 1.30, "v_bulk_ms": 0.0},
+    {"name": "Cold ISM / GMC",              "rho_N_m3": 1.0e8,  "T_K": 20.0,    "R_m": 10.0e-3 * KPC_TO_METER,"M_enc_kg": 1.0e5 * M_SOLAR_KG,  "mu_mol": 2.33, "v_bulk_ms": 0.0},
+    {"name": "99942 Apophis",               "rho_N_m3": 1.8e30, "T_K": 270.0,   "R_m": 185.0,                 "M_enc_kg": 6.1e10,              "mu_mol": 28.0, "v_bulk_ms": 0.0},
+    {"name": "Earth",                       "rho_N_m3": 3.3e30, "T_K": 288.0,   "R_m": 6.3712e6,              "M_enc_kg": 5.9722e24,           "mu_mol": 28.0, "v_bulk_ms": 0.0},
+    {"name": "Sun",                         "rho_N_m3": 8.4e29, "T_K": 5.778e3, "R_m": 6.9634e8,              "M_enc_kg": 1.0 * M_SOLAR_KG,    "mu_mol": 0.60, "v_bulk_ms": 0.0},
+    {"name": "Crab Pulsar",                 "rho_N_m3": 3.0e44, "T_K": 1.0e8,   "R_m": 1.0e4,                 "M_enc_kg": 1.4 * M_SOLAR_KG,    "mu_mol": 1.00, "v_bulk_ms": 0.0},
+]
+
+
+def run_two_condition_phase_audit(
+    custom_n_m3=5.0e4,
+    custom_T_K=1.5e7,
+    custom_R_kpc=10.0,
+    custom_M_bcg_11=3.0,
+    custom_mu=0.60,
+    custom_v_bulk_kms=0.0,
+):
+    """
+    Evaluates the zero-parameter Two-Condition Compilation Gate across 16 astrophysical
+    benchmarks + a live user-configured cluster/gas parcel, and renders:
+      Panel 1: 4-Quadrant Compilation Phase Diagram (log10 rho_N vs log10 Lambda_lock)
+      Panel 2: Cool-Core (Perseus) vs Non-Cool-Core (Coma) radial Lambda_lock(r) profiles
+    Returns (fig, df_phase, metrics_dict).
+    """
+    r_custom_m = float(custom_R_kpc) * KPC_TO_METER
+    m_gas_custom = (4.0 / 3.0) * np.pi * (r_custom_m ** 3) * float(custom_n_m3) * M_PROTON
+    m_enc_custom = float(custom_M_bcg_11) * 1.0e11 * M_SOLAR_KG + m_gas_custom
+
+    entries = list(PHASE_LOCK_BENCHMARKS) + [{
+        "name": "Live Custom Probe",
+        "rho_N_m3": float(custom_n_m3),
+        "T_K": float(custom_T_K),
+        "R_m": r_custom_m,
+        "M_enc_kg": m_enc_custom,
+        "mu_mol": float(custom_mu),
+        "v_bulk_ms": float(custom_v_bulk_kms) * 1.0e3,
+    }]
+
+    names_all = [e["name"] for e in entries]
+    rho_arr = np.array([e["rho_N_m3"] for e in entries], dtype=float)
+    temp_arr = np.array([e["T_K"] for e in entries], dtype=float)
+    rad_arr = np.array([e["R_m"] for e in entries], dtype=float)
+    mass_arr = np.array([e["M_enc_kg"] for e in entries], dtype=float)
+    mu_arr = np.array([e["mu_mol"] for e in entries], dtype=float)
+    vb_arr = np.array([e["v_bulk_ms"] for e in entries], dtype=float)
+
+    gate_res = evaluate_two_condition_compilation_gate(
+        rho_arr, temp_arr, rad_arr, mass_arr, mu_mol=mu_arr, v_bulk_ms=vb_arr
+    )
+
+    n_bench = len(PHASE_LOCK_BENCHMARKS)
+    n_comp = int(np.sum(gate_res["theta_compiled"][:n_bench]))
+    lam_custom = float(gate_res["lambda_lock"][-1])
+    th_custom = int(gate_res["theta_compiled"][-1])
+
+    # Panel 2 radial cluster profiles (1 kpc -> 300 kpc, strictly baryonic mass)
+    r_kpc = np.geomspace(1.0, 300.0, 300)
+    r_m = r_kpc * KPC_TO_METER
+
+    n_pers = 2.0e5 * (1.0 + (r_kpc / 25.0) ** 2) ** (-1.0)
+    t_pers = 8.0e6 + (6.0e7 - 8.0e6) * ((r_kpc / 25.0) ** 1.8) / (1.0 + (r_kpc / 25.0) ** 1.8)
+    m_pers = (4.0e11 * M_SOLAR_KG * (r_kpc / (r_kpc + 1.0)) ** 2) + 0.5 * ((4.0 / 3.0) * np.pi * (r_m ** 3) * n_pers * M_PROTON)
+    gate_pers = evaluate_two_condition_compilation_gate(n_pers, t_pers, r_m, m_pers, mu_mol=0.60, v_bulk_ms=0.0)
+    lam_pers = gate_pers["lambda_lock"]
+
+    n_coma = 3.5e3 * (1.0 + (r_kpc / 250.0) ** 2) ** (-1.125)
+    t_coma = np.full_like(r_kpc, 9.5e7)
+    m_coma = (1.5e11 * M_SOLAR_KG * (r_kpc / (r_kpc + 8.0)) ** 2) + ((4.0 / 3.0) * np.pi * (r_m ** 3) * n_coma * M_PROTON)
+    gate_coma = evaluate_two_condition_compilation_gate(n_coma, t_coma, r_m, m_coma, mu_mol=0.60, v_bulk_ms=0.0)
+    lam_coma = gate_coma["lambda_lock"]
+
+    compiled_idx = np.where(gate_pers["theta_compiled"] == 1)[0]
+    if len(compiled_idx) > 0:
+        last_i = int(compiled_idx[-1])
+        if last_i + 1 < len(r_kpc) and lam_pers[last_i] > 1.0 > lam_pers[last_i + 1]:
+            frac = (lam_pers[last_i] - 1.0) / (lam_pers[last_i] - lam_pers[last_i + 1])
+            r_cross_kpc = float(r_kpc[last_i] + frac * (r_kpc[last_i + 1] - r_kpc[last_i]))
+        else:
+            r_cross_kpc = float(r_kpc[last_i])
+    else:
+        r_cross_kpc = 0.0
+
+    # ==========================================
+    # 2-PANEL PHASE-LOCK DIAGNOSTIC FIGURE
+    # ==========================================
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6.2), facecolor='#0b1120')
+    for ax in (ax1, ax2):
+        ax.set_facecolor('#070c18')
+        ax.tick_params(colors='#94a3b8')
+        ax.grid(True, alpha=0.2, linestyle=':')
+
+    # --- Panel 1: 4-Quadrant Compilation Phase Diagram ---
+    log_rho = np.log10(np.maximum(rho_arr, 1e-12))
+    log_lam = np.log10(np.maximum(gate_res["lambda_lock"], 1e-12))
+    log_gc = float(np.log10(RHO_GC_THRESHOLD))
+
+    ax1.set_xlim(-2.5, 47.0)
+    ax1.set_ylim(-2.4, 5.2)
+
+    ax1.axvspan(-2.5, log_gc, ymin=0.0, ymax=1.0, color='#38bdf8', alpha=0.08)
+    ax1.axhspan(-2.4, 0.0, xmin=(log_gc - (-2.5)) / (47.0 - (-2.5)), xmax=1.0, color='#f59e0b', alpha=0.10)
+    ax1.axhspan(0.0, 5.2, xmin=(log_gc - (-2.5)) / (47.0 - (-2.5)), xmax=1.0, color='#10b981', alpha=0.10)
+
+    ax1.axvline(log_gc, color='#22d3ee', linestyle='--', linewidth=1.6, label=rf'Cond 1: $\rho_N = 4.0$ ($\log_{{10}}={log_gc:.3f}$)')
+    ax1.axhline(0.0, color='#f43f5e', linestyle='--', linewidth=1.6, label=r'Cond 2: $\Lambda_{\mathrm{lock}} = 1.0$')
+
+    ax1.text(-1.1, -2.05, "SUB-THRESHOLD\nVOID FLOOR\n(C1 = 0)", ha='center', va='bottom', fontsize=8.0, fontweight='bold', color='#60a5fa', alpha=0.9)
+    ax1.text(25.0, -2.05, "SUPER-DENSITY PASSIVE\n(I-Phase Plasma: C1=1, C2=0)", ha='center', va='bottom', fontsize=8.2, fontweight='bold', color='#fbbf24', alpha=0.9)
+    ax1.text(21.0, 4.85, "COMPILED MATTER\n(Γ-Phase: C1=1, C2=1)", ha='center', va='top', fontsize=8.5, fontweight='bold', color='#34d399', alpha=0.9)
+
+    c1_b = gate_res["c1_density"][:n_bench]
+    c2_b = gate_res["c2_phase_locked"][:n_bench]
+    void_m = ~c1_b
+    passive_hi_m = c1_b & (~c2_b)
+    comp_m = c1_b & c2_b
+
+    ax1.scatter(log_rho[:n_bench][void_m], log_lam[:n_bench][void_m], color='#60a5fa', s=70, edgecolors='#f8fafc', linewidths=0.8, zorder=5, label='Void / IGM (C1=0)')
+    ax1.scatter(log_rho[:n_bench][passive_hi_m], log_lam[:n_bench][passive_hi_m], color='#f59e0b', s=75, marker='s', edgecolors='#f8fafc', linewidths=0.8, zorder=5, label='WHIM / Hot ICM / Wind (PASSIVE)')
+    ax1.scatter(log_rho[:n_bench][comp_m], log_lam[:n_bench][comp_m], color='#10b981', s=75, edgecolors='#f8fafc', linewidths=0.8, zorder=5, label='Compiled Matter (Γ-Phase)')
+
+    ax1.scatter([log_rho[-1]], [log_lam[-1]], color='#facc15', marker='*', s=250, edgecolors='#f8fafc', linewidths=0.9, zorder=8, label='Live Custom Probe')
+
+    phase_offsets = {
+        "Cosmic Void": (-4, 14, 'center', 'bottom', False),
+        "Diffuse IGM": (12, 8, 'left', 'bottom', True),
+        "Dense WHIM Filament": (78, 18, 'left', 'bottom', True),
+        "Hot Galactic Halo / CGM": (8, -44, 'left', 'top', True),
+        "Cluster Outskirts (r500)": (66, -16, 'left', 'top', True),
+        "Non-Cool-Core Coma": (28, -64, 'left', 'top', True),
+        "Cool-Core Perseus (20 kpc)": (42, -22, 'left', 'top', True),
+        "Solar Wind (1 AU)": (16, -4, 'left', 'center', False),
+        "Cool-Core Perseus (5 kpc)": (32, 18, 'left', 'bottom', True),
+        "DDO 154 HI Disk": (14, 2, 'left', 'center', False),
+        "Cool-Core H-alpha Filaments": (18, -14, 'left', 'top', True),
+        "Cold ISM / GMC": (16, 12, 'left', 'bottom', True),
+        "Sun": (-16, 12, 'right', 'bottom', True),
+        "99942 Apophis": (14, -14, 'left', 'top', True),
+        "Earth": (14, 12, 'left', 'bottom', True),
+        "Crab Pulsar": (-12, -16, 'right', 'top', False),
+        "Live Custom Probe": (36, 0, 'left', 'center', True),
+    }
+    for i_p, nm_p in enumerate(names_all):
+        dx_p, dy_p, ha_p, va_p, arrow_p = phase_offsets.get(nm_p, (8, 8, 'left', 'bottom', False))
+        arr_kw = dict(arrowstyle='-', color='#64748b', lw=0.7) if arrow_p else None
+        lbl_col = '#facc15' if nm_p == "Live Custom Probe" else '#e2e8f0'
+        fw = 'bold' if nm_p == "Live Custom Probe" else 'normal'
+        ax1.annotate(
+            nm_p,
+            (log_rho[i_p], log_lam[i_p]),
+            xytext=(dx_p, dy_p),
+            textcoords='offset points',
+            ha=ha_p, va=va_p,
+            fontsize=7.2, color=lbl_col, fontweight=fw,
+            arrowprops=arr_kw,
+        )
+
+    ax1.set_xlabel(r'Compiled Baryon Density $\log_{10}(\rho_N\ [\mathrm{nodes/m}^3])$', color='#cbd5e1', fontsize=10.5)
+    ax1.set_ylabel(r'Phase-Lock Ratio $\log_{10}(\Lambda_{\mathrm{lock}})$', color='#cbd5e1', fontsize=10.5)
+    ax1.set_title(r'Two-Condition Compilation Gate ($\Theta = \Theta(\rho_N - 4)\Theta(\Lambda_{\mathrm{lock}} - 1)$)', color='#f8fafc', fontsize=11.5)
+    ax1.legend(loc='lower right', bbox_to_anchor=(0.985, 0.145), facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0', fontsize=7.2)
+
+    # --- Panel 2: Cool-Core vs Non-Cool-Core Cluster Transition Curve ---
+    ax2.loglog(r_kpc, lam_pers, color='#10b981', linewidth=2.5, label=r'Cool-Core Perseus ($T_{\mathrm{core}} \to 8\times 10^6$ K + BCG)')
+    ax2.loglog(r_kpc, lam_coma, color='#f59e0b', linewidth=2.4, linestyle='--', label=r'Non-Cool-Core Coma ($T = 9.5\times 10^7$ K, flat core)')
+    ax2.axhline(1.0, color='#f43f5e', linestyle='--', linewidth=1.8, label=r'Phase-Lock Threshold ($\Lambda_{\mathrm{lock}} = 1.0$)')
+
+    if r_cross_kpc > 1.0:
+        ax2.axvspan(1.0, r_cross_kpc, color='#10b981', alpha=0.14, label=rf'Inner Compiled Core ($r \leq {r_cross_kpc:.2f}$ kpc)')
+        ax2.axvline(r_cross_kpc, color='#34d399', linestyle=':', linewidth=1.6)
+        ax2.scatter([r_cross_kpc], [1.0], color='#34d399', edgecolor='#f8fafc', s=75, zorder=6)
+
+    if 1.0 <= float(custom_R_kpc) <= 300.0:
+        ax2.scatter(
+            [float(custom_R_kpc)], [max(lam_custom, 1e-4)],
+            color='#facc15', marker='*', s=220, edgecolors='#f8fafc', linewidths=0.8, zorder=7,
+            label=rf'Live Custom Probe ($\Lambda={lam_custom:.2e}$)'
+        )
+
+    icm_badge = (
+        rf"Bohr Unlock Scale: $E_{{\mathrm{{Ryd}}}} = {E_RYD_J/1.602176634e-19:.2f}$ eV"
+        "\n"
+        rf"$T_{{\mathrm{{lock}}}} = \frac{{2 E_{{\mathrm{{Ryd}}}}}}{{3 k_B}} = {T_LOCK_RYD_K:,.0f}$ K"
+        "\n"
+        rf"Cool-Core Lock ($r \leq {r_cross_kpc:.2f}$ kpc) vs. Non-Cool-Core"
+        "\n"
+        r"drives falsifiable $(1-b)$ lensing split"
+    )
+    ax2.text(
+        0.97, 0.96, icm_badge, transform=ax2.transAxes,
+        ha='right', va='top', fontsize=8.0, color='#e2e8f0',
+        bbox=dict(boxstyle='round,pad=0.45', facecolor='#0f172a', edgecolor='#10b981', alpha=0.90),
+    )
+
+    ax2.set_xlim(1.0, 300.0)
+    ax2.set_ylim(2.0e-3, 10.0)
+    ax2.set_xlabel(r'Clustercentric Radius $r$ [kpc]', color='#cbd5e1', fontsize=10.5)
+    ax2.set_ylabel(r'Phase-Lock Ratio $\Lambda_{\mathrm{lock}}(r)$', color='#cbd5e1', fontsize=10.5)
+    ax2.set_title(r'Cool-Core vs. Non-Cool-Core ICM Phase Transition', color='#f8fafc', fontsize=11.5)
+    ax2.legend(loc='lower left', facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0', fontsize=7.8)
+
+    plt.tight_layout()
+
+    # Output Audit DataFrame & Metrics
+    df_phase = pd.DataFrame({
+        "Regime": names_all,
+        "rho_N_nodes_m3": rho_arr,
+        "T_K": temp_arr,
+        "r_grav": gate_res["r_grav"],
+        "r_em": gate_res["r_em"],
+        "Lambda_lock": gate_res["lambda_lock"],
+        "Cond1_rho>=4": gate_res["c1_density"].astype(bool),
+        "Cond2_Lock>=1": gate_res["c2_phase_locked"].astype(bool),
+        "Verdict": ["COMPILED (1)" if v == 1 else "PASSIVE (0)" for v in gate_res["theta_compiled"]],
+    })
+
+    metrics_dict = {
+        "Bohr Unlock Temp (T_lock)": f"{T_LOCK_RYD_K:,.0f} K (13.61 eV)",
+        "Benchmarks Compiled": f"{n_comp} / {n_bench} Regimes",
+        "Cool-Core Crossover (r_lock)": f"{r_cross_kpc:.2f} kpc (Perseus)",
+        "Custom Probe Λ_lock": f"{lam_custom:.3e}",
+        "Custom Gate Verdict": "COMPILED (Γ-Phase)" if th_custom == 1 else "PASSIVE (I-Phase)",
+    }
+
+    return fig, df_phase, metrics_dict
