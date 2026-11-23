@@ -6,7 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An interactive, first-principles cosmological simulation engine and observatory. **Substrate Logistics** replaces empirical curve-fitting parameters (Dark Energy $\Omega_\Lambda$, Cold Dark Matter halos, and FLRW single-scalar constraints) with a zero-parameter metric unspooling framework driven directly by 3D compiled matter density fields $\rho_N(\vec{r})$ across real astronomical catalogs (UNG 2013, Cosmicflows-4, 2M++).
+An interactive, first-principles cosmological simulation engine and observatory. **Substrate Logistics** replaces empirical curve-fitting parameters (Dark Energy $\Omega_\Lambda$, Cold Dark Matter halos, and FLRW single-scalar constraints) with a zero-parameter metric unspooling framework driven directly by 3D compiled matter density fields $\rho_N(\vec{r})$ across real astronomical catalogs (`UNG 2013`, `Cosmicflows-4`, `2M++`) via a **4-tier Multi-Band & Color-Dependent Stellar Mass Pipeline** (near-IR $K_s$, WISE W1, Bell+03 $B-V$, with legacy constant $M/L$ comparison toggle) and the zero-parameter **Two-Condition Compilation Gate**.
 
 ---
 
@@ -30,6 +30,7 @@ Before exploring the individual modules, read our **[Comparative Architecture Gu
 | **Structure Growth** | $S_8$ | `0.7542 / 0.8327` | Void / Global 120-cell partition |
 | **Disk Truncation Cliff** | $`\frac{1}{2}\ln(1/\mathcal{C}_\delta)`$ | `3.8291` | $R_d$ (2D exponential disk cutoff) |
 | **BAO Natural Ruler** | $r_s$ | `149.25` | $\text{Mpc}$ (First-principles acoustic scale) |
+| **Bohr Phase-Lock Scale** | $`E_{\text{Ryd}} / T_{\text{lock}}`$ | `13.6057 eV / 105,258 K` | Zero-parameter EM unlock ($\alpha^{-1}$, $m_p/m_e$) |
 
 ---
 
@@ -91,7 +92,7 @@ Focuses on bare-metal geometric rulers, hybrid CMB dipole shifts, and optical li
 | **BAO Ruler Warping** | <img src="documentation/plot_substrate_bao_ruler_warping.png" width="300" alt="BAO Ruler Warping" /> | Alcock-Paczynski anisotropic distortion of the $149.25\text{ Mpc}$ acoustic sphere across local filament structures. | [Read Documentation](documentation/readme_substrate_bao_ruler_warping.md) |
 | **CMB Dipole Anomaly** | <img src="documentation/plot_substrate_cmb_dipole_anomaly.png" width="300" alt="CMB Dipole Anomaly" /> | Hybrid Solar motion + line-of-sight redshifting vector sum (J2000 Galactic-to-ICRS aligned), shifting the observable dipole axis toward Centaurus. | [Read Documentation](documentation/readme_substrate_cmb_dipole_anomaly.md) |
 | **Gravitational Lensing** | <img src="documentation/plot_substrate_galactic_lensing.png" width="300" alt="Gravitational Lensing" /> | Zero-dark-matter light deflection separating $1/b$ baryonic address deletion from the linear unspooling tax $4 a_\Omega b / c^2$ and $(1-b) = 0.8203$ cluster bias. | [Read Documentation](documentation/readme_substrate_galactic_lensing.md) |
-| **$S_8$ Weak Lensing Tension** | <img src="documentation/plot_substrate_s8_tension.png" width="300" alt="S8 Weak Lensing Tension" /> | Resolves the weak lensing vs. Planck tension via the $\rho_N \ge 4.0$ compilation filter: $`S_{8,\text{void}} = 0.7542`$, $`S_{8,\text{global}} = 0.8327`$, $`S_{8,\text{core}} = 0.8603`$, and $(1-b)=0.8203$ bias. | [Read Documentation](documentation/readme_substrate_s8_tension.md) |
+| **$S_8$ Weak Lensing Tension** | <img src="documentation/plot_substrate_s8_tension.png" width="300" alt="S8 Weak Lensing Tension" /> | Resolves the weak lensing vs. Planck tension via the **Two-Condition Compilation Gate** ($`\Theta(\rho_N - 4)\Theta(\Lambda_{\text{lock}} - 1)`$): 3D catalog $S_8$ field ($`S_{8,\text{void}} = 0.7542`$, $`S_{8,\text{global}} = 0.8327`$, $`S_{8,\text{core}} = 0.8603`$, $(1-b)=0.8203$) plus 16-regime phase diagram & Cool-Core `r_lock = 5.42 kpc` ICM explorer. | [Read Documentation](documentation/readme_substrate_s8_tension.md) |
 
 ---
 
@@ -191,6 +192,26 @@ This cosmological simulation engine and observatory is grounded in the **Substra
 
 ---
 
+## 📡 Multi-Band Stellar Mass Pipeline & Local Volume Audit
+
+The shared catalog engine ([`modules/data_loader.py`](modules/data_loader.py)) removes the legacy single-band constant `M/L_B = 0.44` dial via a vectorized 4-tier photometric mass estimator (`compute_multiband_stellar_nodes`) persisted in `*_v2.npz` caches (with graceful offline fallback to `v1` caches and a live sidebar toggle between **Multi-Band / Color-Dependent** and **Legacy Constant M/L**):
+
+1. **Tier 1 — Near-IR $K_s$-band (`M/L_K = 0.60`, $M_{K,\odot} = 3.27$):** McGaugh & Schombert (2014) near-IR mass-to-light calibration (full coverage in `UNG 2013` and `2M++` `Ksmag`).
+2. **Tier 2 — Near-IR WISE W1 (`M/L_W1 = 0.50`, $M_{W1,\odot} = 3.24$ Vega):** Lelli et al. (2016) calibration; for `Cosmicflows-4`, cross-matched by `PGC` ID against Kourkchi et al. (2020, `J/ApJ/902/145`) with Jarrett et al. (2011) `W1_Vega = W1_AB - 2.699` conversion.
+3. **Tier 3 — Optical $B - V$ Color (Bell et al. 2003, Table 7):** $\log_{10}(M/L_B) = -0.942 + 1.737(B-V) - 0.15$ (Chabrier/Kroupa IMF offset), clamped to `[0.10, 4.00]`.
+4. **Tier 4 — Single-Band Legacy Fallback:** Falls back to single-band `default_m_l` when multi-band photometry is unavailable.
+
+| Catalog | Mode | N | Photometry Provenance | $`\rho_N(\le 10\text{ Mpc})`$ [nodes/m³] | $`H_{\text{local}}(\le 10\text{ Mpc})`$ [km/s/Mpc] | Module 17 `<S8>` |
+| :--- | :--- | ---: | :--- | ---: | ---: | ---: |
+| UNG 2013 | `legacy` | 846 | Legacy Constant `M/L` (`v2`) | `0.00251` | `68.92` | `0.7796` |
+| UNG 2013 | `multiband` | 846 | `100% K-band` (`v2`) | `0.01279` | `70.80` | `0.7890` |
+| Cosmicflows-4 | `legacy` | 17,511 | Legacy Constant `M/L` (`v2`) | `0.00107` | `68.40` | `0.8317` |
+| Cosmicflows-4 | `multiband` | 17,511 | `27% WISE W1 \| 73% Fallback` (`v2`) | `0.00228` | `68.85` | `0.8313` |
+
+*Inside the `10 Mpc` Local Volume, switching `UNG 2013` from legacy `B`-band to 100% near-IR `K`-band lifts `H_local` from `68.92` to `70.80 km/s/Mpc` (`+1.00 km/s/Mpc` vs. CCHP TRGB `69.8 ± 1.9`, `-2.24 km/s/Mpc` vs. SH0ES `73.04 ± 1.04`).*
+
+---
+
 ## 🧪 Verification Benchmark & CLI
 
 Run the headless 18-module verification harness directly from the repository root using [`tools/benchmark_dashboard.py`](tools/benchmark_dashboard.py):
@@ -202,7 +223,9 @@ python tools/benchmark_dashboard.py
 This benchmark validates:
 1. Exact closed-form first-principles constants derived in [`modules/data_loader.py`](modules/data_loader.py) without CODATA $G$.
 2. Orthogonal J2000 Galactic-to-ICRS sky coordinate alignment (`R_GAL_TO_ICRS`) verified against `astropy.coordinates.SkyCoord` (`< 1e-14` error).
-3. Headless execution across all **18 computational modules** (with real local catalog caches or deterministic fallback), verifying non-empty output tables, zero `NaN`/`Inf` numeric values, and clean Matplotlib renders alongside physics regression checks.
+3. Headless execution across all **18 computational modules** under `mass_mode="multiband"` (with real local catalog caches or deterministic fallback), verifying non-empty output tables, zero `NaN`/`Inf` numeric values, and clean Matplotlib renders alongside physics regression checks.
+4. Zero-parameter **Two-Condition Compilation Gate** regression checks verifying `E_Ryd = 13.6057 eV`, `T_lock = 105,258.34 K`, Cool-Core Perseus `r_lock = 5.42 kpc`, and exact `8 PASSIVE / 8 COMPILED` verdicts across all 16 astrophysical regimes.
+5. **4-Tier Photometric Mass Audit** unit tests and side-by-side `legacy` vs. `multiband` Local Volume `rho_N(<=10 Mpc)`, `H_local`, and `<S8>` comparisons.
 
 ---
 

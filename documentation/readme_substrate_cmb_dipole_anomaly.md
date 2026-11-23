@@ -107,8 +107,9 @@ The module outputs a full-sky Mollweide projection map ($\Delta T(\theta, \phi)$
 
 ### Survey Catalog Response & Field Scaling (J2000 Galactic-to-ICRS Aligned)
 
-* **UNG 2013 ($\le 35\text{ Mpc}$, $\sigma = 1.8\text{ Mpc}$):** Net shifted dipole axis at `(264.7°, +47.6°)` with composite amplitude `3.297 mK`.
-* **Cosmicflows-4 ($\le 150\text{ Mpc}$, $\sigma = 2.0\text{ Mpc}$):** Integrates across the Great Attractor and Laniakea corridors, shifting the dipole axis to `(270.5°, +43.7°)` (~`6.2°` angular shift, `2.934 mK`).
-* **2M++ Infrared ($\le 200\text{ Mpc}$, $\sigma = 3.5\text{ Mpc}$):** Full-sky coverage out to $200\text{ Mpc}$ shifts the net dipole axis to `(259.6°, +51.7°)` (~`4.7°` shift, `2.959 mK`).
+* **UNG 2013 ($\le 35\text{ Mpc}$, $\sigma = 1.8\text{ Mpc}$, Legacy `M/L`):** Net shifted dipole axis at `(264.7°, +47.6°)` with composite amplitude `3.297 mK`.
+* **Cosmicflows-4 ($\le 150\text{ Mpc}$, $\sigma = 2.0\text{ Mpc}$, Legacy `M/L`):** Integrates across the Great Attractor and Laniakea corridors, shifting the dipole axis to `(270.5°, +43.7°)` (~`6.2°` angular shift, `2.934 mK`).
+* **2M++ Infrared ($\le 200\text{ Mpc}$, $\sigma = 3.5\text{ Mpc}$, Legacy `M/L`):** Full-sky coverage out to $200\text{ Mpc}$ shifts the net dipole axis to `(259.6°, +51.7°)` (~`4.7°` shift, `2.959 mK`).
+* **Multi-Band Photometry (`v2` Cache) Shift:** Switching to the Multi-Band Stellar Mass Pipeline updates per-galaxy compiled weights (`27% WISE W1` on Cosmicflows-4, `Ksmag` on 2M++, `100% K-band` on UNG 2013) and automatically invalidates cached HEALPix maps via `catalog_sig` (e.g., Cosmicflows-4 at `d_max=35 Mpc`, `nside=16`: axis `(266.3°, +47.5°)`, `3.118 mK`).
 
 ---

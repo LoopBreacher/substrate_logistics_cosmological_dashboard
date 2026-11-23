@@ -67,10 +67,10 @@ $$\text{Capacity Used} = \min\left(100, \frac{v_{\text{inflow}}}{c} \times 100\r
 
 * **Algorithmic Pipeline:**
 1. **Load Evaluation:** Computes total compiled proton node count $N = M / m_p$.
-2. **Horizon Computation:** Derives exact speed-of-light commit horizon radius $R_{\text{lock}}$.
+2. **Horizon & Quantum Boundary Computation:** Derives exact speed-of-light commit horizon radius $R_{\text{lock}}$ and top-down quantum boundary radius $R_{\text{quantum}} = (c\bar{\lambda}_p) / (\mathcal{T}_\Omega \sqrt{(\bar{\lambda}_p / N) g_{\text{surface}}})$ (`6,371.20 km` for Earth).
 3. **Grid Construction:** Generates a logarithmic 1D spatial grid $r \in [R_{\text{min}}, R_{\text{max}}]$ across $N_{\text{pts}} = 250$ radial shells.
 4. **Field Evaluation:** Solves address deletion acceleration $g_\Omega(r)$, inflow velocity $v_{\text{inflow}}(r)$, low-orbit bypass velocity $v_{\text{orbit}}(r)$, and discrete sub-node voxel deletion rate $\dot{N}_{\text{pixels}}(r)$.
-5. **UI Rendering:** Assembles a 2-panel dark Matplotlib figure, metric cards, and export DataFrame.
+5. **UI Rendering:** Assembles a 2-panel dark Matplotlib figure, metric cards, magnetospheric shells ($3R$, $4R$, $6.784R$), black-hole boundary unspooling badge, and export DataFrame.
 
 
 
@@ -78,7 +78,7 @@ $$\text{Capacity Used} = \min\left(100, \frac{v_{\text{inflow}}}{c} \times 100\r
 
 ## 📊 Visual Diagnostic Output & Graphics
 
-* **Panel 1 (Spatial Coordinate Address Inflow Profile):** Plots inward address freefall velocity $v_{\text{inflow}}(r)$ alongside the physical boundary radius. For sub-light bodies ($v_{\text{surf}} < 0.5c$), the panel displays an inline **Kernel Lock Safety Badge** with processing headroom percentage. For relativistic targets ($v_{\text{surf}} \ge 0.5c$), it renders the speed-of-light limit line ($1.0c$) and the vertical Event Horizon boundary ($R_{\text{lock}}$).
+* **Panel 1 (Spatial Coordinate Address Inflow Profile):** Plots inward address freefall velocity $v_{\text{inflow}}(r)$ alongside the physical boundary radius. For sub-light bodies ($v_{\text{surf}} < 0.5c$), the panel displays an inline **Kernel Lock Safety Badge** with processing headroom percentage plus vertical markers at the Plasmapause ($3R$, when $r_{\max}/R \ge 4$), Van Allen ($4R$), and Topological Drag Stagnation limit ($6.784R$, when $r_{\max}/R \ge 7$). For Kernel Lock targets ($v_{\text{surf}}/c \ge 0.999$), it renders the speed-of-light limit line ($1.0c$), vertical Event Horizon boundary ($R_{\text{lock}}$), and the crimson **`BOUNDARY UNSPOOLING ACTIVE (R_EH): Γ-Phase Matter → I-Phase Radiation (E = mc² Cache Flush)`** badge.
 * **Panel 2 (Substrate Memory Garbage Collection Intensity):** Plots discrete spatial voxel deletion rate $\dot{N}_{\text{pixels}}(r)$ in pixels/second on a logarithmic scale, mapping memory management load across the surrounding space.
 
 ---
@@ -92,6 +92,7 @@ $$\text{Capacity Used} = \min\left(100, \frac{v_{\text{inflow}}}{c} \times 100\r
 | `Escape Velocity (v_escape)` | `km/s` ($c$ ratio) | Inward spatial address freefall velocity $`v_{\text{inflow}} = \sqrt{2 g_\Omega R}`$. |
 | `Low-Orbit Speed (v_orbit)` | `km/s` | Circular orbit bypass speed $`v_{\text{orbit}} = v_{\text{inflow}} / \sqrt{2}`$. |
 | `Surface Pixel Purge Rate` | `pixels/s` | Discrete sub-node voxels ($V_{\text{node}} = 9.3019 \times 10^{-48}\text{ m}^3$) deleted per second. |
+| `Top-Down Quantum Radius` | `km` (`6,371.20 km` Earth) | Top-down holographic boundary $`R_{\text{quantum}} = \frac{c\bar{\lambda}_p}{\mathcal{T}_\Omega\sqrt{(\bar{\lambda}_p/N)g_{\text{surf}}}}`$. |
 | `Kernel Lock Safety Margin` | `%` | Processing headroom remaining $\max(0, 1.0 - v/c) \times 100\%$. |
 
 * **CSV Export Schema (`spatial_garbage_collection_profile.csv`):**

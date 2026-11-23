@@ -20,7 +20,7 @@ $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \sqrt{\frac{8\pi \mathcal{K}_\
 
 
 * **Integrated Ray-Tracing Path:** Photon redshift accumulation is evaluated via direct line-of-sight path integration through the actual 3D cosmic web ($cz_{\text{exp}} = \int_0^d H_{\text{local}}(s) \, ds$), eliminating the artificial separation between expansion and peculiar velocity.
-* **Zero-Parameter Convergence:** Unspooling dynamically adapts to the matter distribution along the sightline. Evaluating small, dense volumes reflects local filament density, while integrating over large homogenizing volumes ($\ge 40\text{ Mpc}$) automatically relaxes the average unspooling rate down to the fundamental vacuum floor ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$).
+* **Zero-Parameter Convergence & Phase Gating:** Unspooling dynamically adapts to the matter distribution along the sightline. Evaluating small, dense volumes reflects local filament density, while integrating over large homogenizing volumes ($\ge 40\text{ Mpc}$) automatically relaxes the average unspooling rate down to the fundamental vacuum floor ($H_{\text{global}} = 67.4275\text{ km/s/Mpc}$). Furthermore, the **Two-Condition Compilation Gate** ($\Theta(\rho_N - 4.0)\,\Theta(\Lambda_{\text{lock}} - 1.0)$ with $T_{\text{lock}} = 105,258\text{ K}$) ensures that hot diffuse WHIM/ICM plasma remains passive $I$-phase gas rather than falsely sourcing compiled gravity.
 
 ---
 
@@ -41,5 +41,5 @@ $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \sqrt{\frac{8\pi \mathcal{K}_\
 
 In Substrate Logistics, the **73 km/s/Mpc** and **67.4 km/s/Mpc** values are not in conflict—they measure two distinct physical regimes:
 
-1. **Local Distance Ladder (73–74 km/s/Mpc):** Standard candles (TRGB, Cepheids, SNe Ia) reside within dense local cosmic web filaments ($d < 30\text{--}100\text{ Mpc}$). Photons traversing these overdense corridors accumulate velocity faster due to elevated local node density $\rho_N(\vec{r})$.
+1. **Local Distance Ladder (69.8–74 km/s/Mpc):** Standard candles (TRGB, Cepheids, SNe Ia) reside within dense local cosmic web filaments ($d < 30\text{--}100\text{ Mpc}$). Replacing the single `M/L_B = 0.44` dial with the **4-Tier Multi-Band Stellar Mass Pipeline** (`100% K-band` on `UNG 2013`) raises the enclosed `<= 10 Mpc` density from `0.00251` to `0.01279 nodes/m³`, shifting `H_local(<= 10 Mpc)` from `68.92` to **`70.80 km/s/Mpc`** (`+1.00 km/s/Mpc` vs. CCHP TRGB `69.8 ± 1.9`, `-2.24 km/s/Mpc` vs. SH0ES `73.04 ± 1.04`), while `Cosmicflows-4` (`27% WISE W1`) evaluates to `68.85 km/s/Mpc` at `10 Mpc`.
 2. **CMB Horizon Fits (67.4275 km/s/Mpc):** Sound horizon acoustic peak measurements average across vast, homogenized cosmological distances ($\ge 1000\text{ Mpc}$). Over these immense scales, density spikes average out across empty cosmic voids, locking the global unspooling rate directly onto the fundamental vacuum floor $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$.

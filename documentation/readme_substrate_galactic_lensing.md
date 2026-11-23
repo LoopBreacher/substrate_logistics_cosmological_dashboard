@@ -93,7 +93,7 @@ $$b_{1:1,\text{total}} = \sqrt{\frac{M_{\text{baryon}} \mathcal{K}_\Omega M_\odo
 ## 📊 Visual Diagnostic Output & Graphics
 
 * **Panel 1 (Light Deflection Profile):** Plots total deflection angle $\theta_{\text{total}}(b)$ [red], local baryonic component $\theta_{\text{baryon}}(b)$ [dashed blue], and scaffolding tax $\theta_{\text{scaffold}}(b)$ [dotted purple]. A vertical green guide line highlights the crossover focus $b_{\text{cross}}$ where deflection parity ($50\%$) occurs.
-* **Panel 2 (Dark Matter Halo Illusion):** Plots inferred halo mass $M_{\text{DM}}(b) \propto b^2$ [solid orange] against the true baryonic baseline $M_{\text{baryon}}$ [dashed blue]. A vertical cyan guide line marks the $1:1$ Total Mass Horizon $b_{1:1}$ where $M_{\text{DM,inferred}} = M_{\text{baryon,total}}$.
+* **Panel 2 (Dark Matter Halo Illusion):** Plots inferred halo mass $M_{\text{DM}}(b) \propto b^2$ [solid orange] against the true baryonic baseline $M_{\text{baryon}}$ [dashed blue]. A vertical cyan guide line marks the $1:1$ Total Mass Horizon $b_{1:1}$ where $M_{\text{DM,inferred}} = M_{\text{baryon,total}}$. For cluster-scale lenses ($M_B \ge 10^{12} M_\odot$), a dash-dot magenta horizontal reference line marks the **Weak-Lensing Hydrostatic Baseline** $(1-b) M_B = 0.8203\,M_B$ linking lensing directly to the $S_8$ 120-cell compilation filter (and cool-core vs. non-cool-core phase-lock split).
 
 ---
 
@@ -107,6 +107,7 @@ $$b_{1:1,\text{total}} = \sqrt{\frac{M_{\text{baryon}} \mathcal{K}_\Omega M_\odo
 | `1:1 Total Mass Horizon (b_1:1)` | `kpc` | Impact parameter where $`M_{\text{DM,inferred}} = M_{\text{baryon,total}}`$. |
 | `Deflection @ Crossover` | `arcsec` | Optical light bending angle evaluated at $b_{\text{cross}}$. |
 | `Total Dark/Light @ b_cross` | Ratio (e.g., `0.43 : 1`) | Inferred dark mass relative to total visible baryonic mass at $b_{\text{cross}}$. |
+| `SZ-Lensing Cluster Bias (1-b)` | `0.8203 (-17.97%)` | Zero-parameter hydrostatic cluster mass bias ratio $`\Omega_{m,\text{void}} / \Omega_{m,\text{global}}`$. |
 
 ### CSV Export Schema (`substrate_gravitational_lensing.csv`)
 

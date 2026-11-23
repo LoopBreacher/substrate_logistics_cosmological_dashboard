@@ -17,7 +17,7 @@ $$H_{\text{local}}(\vec{r}) = H_{\text{global}} + \Theta(\rho_N(\vec{r}) - \rho_
 Where:
 * $H_{\text{global}} = 67.4275\text{ km/s/Mpc}$ is the global hardware vacuum floor.
 * $\mathcal{K}_\Omega = 1.11592 \times 10^{-37}\text{ m}^3/(\text{node}\cdot\text{s}^2)$ is the Substrate Anchor Constant.
-* $\Theta$ enforces the Garbage Collection compilation threshold ($\rho_{\text{threshold}} = 4.0\text{ nodes/m}^3$), which applies at the stellar/galactic phase level prior to Mpc-scale Gaussian smoothing.
+* $\Theta$ enforces the Two-Condition Compilation Gate ($\Theta(\rho_N - 4.0)\,\Theta(\Lambda_{\text{lock}} - 1.0)$ with Bohr thermal unlock scale $T_{\text{lock}} = 105,258\text{ K}$), which filters cold compiled galaxies from hot diffuse WHIM/ICM plasma at the stellar/galactic phase level prior to Mpc-scale Gaussian smoothing.
 
 ### 2. Inflow Peculiar Velocity Vector
 Galactic motion is directed toward higher spatial processing throughput. The peculiar inflow vector $\vec{v}_{\text{inflow}}(\vec{r})$ is proportional to the spatial gradient of $H_{\text{local}}(\vec{r})$:
