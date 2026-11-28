@@ -110,6 +110,76 @@ Focuses on spatial memory management, coordinate deletion rates, hardware clock 
 
 ---
 
+## 📡 Multi-Band Stellar Mass Pipeline & Local Volume Audit
+
+The shared catalog engine ([`modules/data_loader.py`](modules/data_loader.py)) removes the legacy single-band constant `M/L_B = 0.44` dial via a vectorized 4-tier photometric mass estimator (`compute_multiband_stellar_nodes`) persisted in `*_v2.npz` caches (with graceful offline fallback to `v1` caches and a live sidebar toggle between **Multi-Band / Color-Dependent** and **Legacy Constant M/L**):
+
+1. **Tier 1 — Near-IR $K_s$-band (`M/L_K = 0.60`, $M_{K,\odot} = 3.27$):** McGaugh & Schombert (2014) near-IR mass-to-light calibration (full coverage in `UNG 2013` and `2M++` `Ksmag`).
+2. **Tier 2 — Near-IR WISE W1 (`M/L_W1 = 0.50`, $M_{W1,\odot} = 3.24$ Vega):** Lelli et al. (2016) calibration; for `Cosmicflows-4`, cross-matched by `PGC` ID against Kourkchi et al. (2020, `J/ApJ/902/145`) with Jarrett et al. (2011) `W1_Vega = W1_AB - 2.699` conversion.
+3. **Tier 3 — Optical $B - V$ Color (Bell et al. 2003, Table 7):** $\log_{10}(M/L_B) = -0.942 + 1.737(B-V) - 0.15$ (Chabrier/Kroupa IMF offset), clamped to `[0.10, 4.00]`.
+4. **Tier 4 — Single-Band Legacy Fallback:** Falls back to single-band `default_m_l` when multi-band photometry is unavailable.
+
+| Catalog | Mode | N | Photometry Provenance | $`\rho_N(\le 10\text{ Mpc})`$ [nodes/m³] | $`H_{\text{local}}(\le 10\text{ Mpc})`$ [km/s/Mpc] | Module 17 `<S8>` |
+| :--- | :--- | ---: | :--- | ---: | ---: | ---: |
+| UNG 2013 | `legacy` | 846 | Legacy Constant `M/L` (`v2`) | `0.00251` | `68.92` | `0.7796` |
+| UNG 2013 | `multiband` | 846 | `100% K-band` (`v2`) | `0.01279` | `70.80` | `0.7890` |
+| Cosmicflows-4 | `legacy` | 17,511 | Legacy Constant `M/L` (`v2`) | `0.00107` | `68.40` | `0.8317` |
+| Cosmicflows-4 | `multiband` | 17,511 | `27% WISE W1 \| 73% Fallback` (`v2`) | `0.00228` | `68.85` | `0.8313` |
+
+*Inside the `10 Mpc` Local Volume, switching `UNG 2013` from legacy `B`-band to 100% near-IR `K`-band lifts `H_local` from `68.92` to `70.80 km/s/Mpc` (`+1.00 km/s/Mpc` vs. CCHP TRGB `69.8 ± 1.9`, `-2.24 km/s/Mpc` vs. SH0ES `73.04 ± 1.04`).*
+
+---
+
+## 🧪 Standalone 3D FFT N-Body Falsification & Verification Testbeds (CLI Benchmark Tools)
+
+Outside the interactive Streamlit UI, three standalone headless 3D Particle-Mesh (`rfftn`) N-body suites serve as reproducible scientific stress tests — first **falsifying** pure MOND-like $a_\Omega$ kinematic modification on Milky Way satellites and then **verifying** the linear-$\mathcal{K}_\Omega$ **Two-Ceiling Topological Cover Pocket** architecture across satellites, spiral disks, and merging galaxy clusters:
+
+1. **QUMOND N-Body Falsification ([`tools/qumond_nbody_testbed.py`](tools/qumond_nbody_testbed.py) → [`qumond_audit/`](qumond_audit/qumond_nbody_benchmark.png)) — Where Pure Acceleration $a_\Omega$ Fails:**
+   * Evolves `10,000`-star equilibrium Plummer spheres on a `64^3` 3D FFT QUMOND mesh for `50 t_cross` across **Palomar 14**, **NGC 2419**, and **Draco dSph** (plus an unequal-mass 500-star momentum proof: `15.87%` drift in naive pairwise $g_{\text{eff}}$ vs. `1.41%` in 3D FFT QUMOND vs. `1.03e-16` in Linear $\mathcal{K}_\Omega$).
+   * **Candid Falsification:** Even with Milky Way External Field Effect ($M_{\text{MW}} = 8.8 \times 10^{10}\ M_\odot$), QUMOND yields triad $\chi^2 = 71.73$ ($\chi^2/3 = 23.91$) — overpredicting Palomar 14 (`0.998 km/s`, `+5.15σ`) and NGC 2419 (`5.599 km/s`, `+3.04σ`) while underpredicting Draco dSph (`1.906 km/s`, `-6.00σ`).
+   * **Outputs:** [`qumond_satellite_summary.csv`](qumond_audit/qumond_satellite_summary.csv), [`qumond_time_series.csv`](qumond_audit/qumond_time_series.csv), [`qumond_nbody_benchmark.png`](qumond_audit/qumond_nbody_benchmark.png).
+
+   ```bash
+   python tools/qumond_nbody_testbed.py --target all --particles 10000 --grid 64 --crossings 50 --out-dir qumond_audit
+   ```
+
+2. **Zero-Parameter `3 P_δ` Cover Pocket N-Body Verification ([`tools/cover_pocket_nbody_testbed.py`](tools/cover_pocket_nbody_testbed.py) → [`cover_pocket_audit/`](cover_pocket_audit/cover_pocket_nbody_benchmark.png)):**
+   * Executes a `15`-run `64^3` linear-$\mathcal{K}_\Omega$ 3D FFT suite across **6 Milky Way satellites** (globular clusters Palomar 14 & NGC 2419 without pockets; dwarfs Segue 1, Draco, Ursa Minor & Sculptor inside zero-parameter `3 P_δ` Burkert Cover Pockets, $\Sigma_p = 169.47\ M_\odot/\text{pc}^2$), slashing the 3-target $\chi^2$ by **`64.0×`** (`71.73 -> 1.12`, $\chi^2/3 = 0.37$ with Live 2-Component Draco; all-6 $\chi^2/6 = 0.740$ for $r_0 = r_h$ and $0.995$ for universal $r_0 = 300\ \text{pc}$).
+   * **`30,000`-Particle Live 2-Component Draco Proof:** Evolves `10,000` live stars + `20,000` live Burkert pocket nodes simultaneously with zero COM recentering over `50 t_cross`, demonstrating cored stability ($r_{1/2,\text{pocket}}(50)/r_{1/2,0} = 0.950$, central core density ratio `1.187`, zero NFW cusp collapse) and **IEEE-754 linear momentum conservation (`4.00e-15`)**.
+   * **4-Disk Rotation Cross-Check (`DDO 154`, `NGC 3198`, `Milky Way`, `UGC 2885`):** Achieves `5.22%` mean error (`UGC 2885: +0.06%`) with emergent `a_BTFR = 8.9844e-11 m/s^2`.
+   * **Outputs:** [`cover_pocket_satellite_summary.csv`](cover_pocket_audit/cover_pocket_satellite_summary.csv), [`cover_pocket_time_series.csv`](cover_pocket_audit/cover_pocket_time_series.csv), [`cover_pocket_disk_check.csv`](cover_pocket_audit/cover_pocket_disk_check.csv), [`cover_pocket_nbody_benchmark.png`](cover_pocket_audit/cover_pocket_nbody_benchmark.png).
+
+   ```bash
+   python tools/cover_pocket_nbody_testbed.py --particles 10000 --pocket-particles 20000 --grid 64 --crossings 50 --out-dir cover_pocket_audit
+   ```
+
+3. **Bullet Cluster `1E 0657-56` Merger & Lensing Testbed ([`tools/bullet_cluster_testbed.py`](tools/bullet_cluster_testbed.py) → [`bullet_audit/`](bullet_audit/bullet_cluster_benchmark.png)):**
+   * Evolves `33,000`-particle (`96^3` 3D FFT, `900 Myr`) 3-species cluster collisions comparing `3 P_δ` (`169.47`), `Σ_0/3` (`2,599.82`), and `Σ_0` (`4,503.03 M☉/pc²`) alongside a live Two-Condition Compilation Gate ablation (`ICM Passive` vs. `ICM Active`).
+   * **`Σ_0/3 (ICM Passive)` Benchmark Match:** Reaches $\Delta x_{\text{lens}} = 739.9\ \text{kpc}$ (`t = 798 Myr`), leaves shocked X-ray gas stalled (`281.9 / 320.0 kpc` lensing-to-X-ray offsets), forms both strong-lensing critical curves ($R_E = 175.6 / 71.4\ \text{kpc}$), recovers Bullet $M_{2D}(<250\ \text{kpc}) = 1.94 \times 10^{14}\ M_\odot$ (vs. Paraficz+ 2016 $2.1 \pm 0.2 \times 10^{14}\ M_\odot$), keeps shocked ICM strictly passive ($\Lambda_{\text{lock,sub}} = 0.058 < 1$), bounds $\mathcal{C}_\delta$ crossing drag to `0.145 kpc`, and conserves momentum to `4.54e-15` — whereas `ICM Active` collapses the offset (`9.4 / 21.0 kpc`, $\Delta x_{\text{lens}} = 273.0\ \text{kpc}$) and `3 P_δ` stays sub-critical ($\kappa = 0.20$).
+   * **Outputs:** [`bullet_cluster_summary.csv`](bullet_audit/bullet_cluster_summary.csv), [`bullet_cluster_trajectory.csv`](bullet_audit/bullet_cluster_trajectory.csv), [`bullet_cluster_benchmark.png`](bullet_audit/bullet_cluster_benchmark.png).
+
+   ```bash
+   python tools/bullet_cluster_testbed.py --out-dir bullet_audit
+   ```
+
+---
+
+## 🧪 Verification Benchmark & CLI
+
+Run the headless 18-module verification harness directly from the repository root using [`tools/benchmark_dashboard.py`](tools/benchmark_dashboard.py):
+
+```bash
+python tools/benchmark_dashboard.py
+```
+
+This benchmark validates:
+1. Exact closed-form first-principles constants derived in [`modules/data_loader.py`](modules/data_loader.py) without CODATA $G$, including the Two-Ceiling Cover Pocket invariants (`η_pocket`, `Σ_p(gal)`, `Σ_p(cluster)`, `a_BTFR`, `1/(9 C_δ)`) and exact analytic Burkert 2D projection (`< 1e-6` error vs. `scipy.integrate.quad`).
+2. Orthogonal J2000 Galactic-to-ICRS sky coordinate alignment (`R_GAL_TO_ICRS`) verified against `astropy.coordinates.SkyCoord` (`< 1e-14` error).
+3. Headless execution across all **18 computational modules** under `mass_mode="multiband"`, including dual-mode checks of Module 9 (Cover Pocket + Legacy Rotation Curves) and Module 14 (Bullet Cluster $\Sigma_0/3$ & Milky Way $3P_\delta$ Cover Pocket + Legacy Abell 1689 Lensing).
+4. Zero-parameter **Two-Condition Compilation Gate** regression checks (`E_Ryd = 13.6057 eV`, `T_lock = 105,258.34 K`, Cool-Core Perseus `r_lock = 5.42 kpc`, `8 PASSIVE / 8 COMPILED`) and **4-Tier Photometric Mass Audit**.
+
+---
+
 ## 👤 Author & Citation
 
 **Marco Lindenbeck**  
@@ -225,76 +295,6 @@ This cosmological simulation engine and observatory is grounded in the **Substra
   url          = {https://doi.org/10.5281/zenodo.23298715},
 }
 ```
-
----
-
-## 📡 Multi-Band Stellar Mass Pipeline & Local Volume Audit
-
-The shared catalog engine ([`modules/data_loader.py`](modules/data_loader.py)) removes the legacy single-band constant `M/L_B = 0.44` dial via a vectorized 4-tier photometric mass estimator (`compute_multiband_stellar_nodes`) persisted in `*_v2.npz` caches (with graceful offline fallback to `v1` caches and a live sidebar toggle between **Multi-Band / Color-Dependent** and **Legacy Constant M/L**):
-
-1. **Tier 1 — Near-IR $K_s$-band (`M/L_K = 0.60`, $M_{K,\odot} = 3.27$):** McGaugh & Schombert (2014) near-IR mass-to-light calibration (full coverage in `UNG 2013` and `2M++` `Ksmag`).
-2. **Tier 2 — Near-IR WISE W1 (`M/L_W1 = 0.50`, $M_{W1,\odot} = 3.24$ Vega):** Lelli et al. (2016) calibration; for `Cosmicflows-4`, cross-matched by `PGC` ID against Kourkchi et al. (2020, `J/ApJ/902/145`) with Jarrett et al. (2011) `W1_Vega = W1_AB - 2.699` conversion.
-3. **Tier 3 — Optical $B - V$ Color (Bell et al. 2003, Table 7):** $\log_{10}(M/L_B) = -0.942 + 1.737(B-V) - 0.15$ (Chabrier/Kroupa IMF offset), clamped to `[0.10, 4.00]`.
-4. **Tier 4 — Single-Band Legacy Fallback:** Falls back to single-band `default_m_l` when multi-band photometry is unavailable.
-
-| Catalog | Mode | N | Photometry Provenance | $`\rho_N(\le 10\text{ Mpc})`$ [nodes/m³] | $`H_{\text{local}}(\le 10\text{ Mpc})`$ [km/s/Mpc] | Module 17 `<S8>` |
-| :--- | :--- | ---: | :--- | ---: | ---: | ---: |
-| UNG 2013 | `legacy` | 846 | Legacy Constant `M/L` (`v2`) | `0.00251` | `68.92` | `0.7796` |
-| UNG 2013 | `multiband` | 846 | `100% K-band` (`v2`) | `0.01279` | `70.80` | `0.7890` |
-| Cosmicflows-4 | `legacy` | 17,511 | Legacy Constant `M/L` (`v2`) | `0.00107` | `68.40` | `0.8317` |
-| Cosmicflows-4 | `multiband` | 17,511 | `27% WISE W1 \| 73% Fallback` (`v2`) | `0.00228` | `68.85` | `0.8313` |
-
-*Inside the `10 Mpc` Local Volume, switching `UNG 2013` from legacy `B`-band to 100% near-IR `K`-band lifts `H_local` from `68.92` to `70.80 km/s/Mpc` (`+1.00 km/s/Mpc` vs. CCHP TRGB `69.8 ± 1.9`, `-2.24 km/s/Mpc` vs. SH0ES `73.04 ± 1.04`).*
-
----
-
-## 🧪 Standalone 3D FFT N-Body Falsification & Verification Testbeds (CLI Benchmark Tools)
-
-Outside the interactive Streamlit UI, three standalone headless 3D Particle-Mesh (`rfftn`) N-body suites serve as reproducible scientific stress tests — first **falsifying** pure MOND-like $a_\Omega$ kinematic modification on Milky Way satellites and then **verifying** the linear-$\mathcal{K}_\Omega$ **Two-Ceiling Topological Cover Pocket** architecture across satellites, spiral disks, and merging galaxy clusters:
-
-1. **QUMOND N-Body Falsification ([`tools/qumond_nbody_testbed.py`](tools/qumond_nbody_testbed.py) → [`qumond_audit/`](qumond_audit/qumond_nbody_benchmark.png)) — Where Pure Acceleration $a_\Omega$ Fails:**
-   * Evolves `10,000`-star equilibrium Plummer spheres on a `64^3` 3D FFT QUMOND mesh for `50 t_cross` across **Palomar 14**, **NGC 2419**, and **Draco dSph** (plus an unequal-mass 500-star momentum proof: `15.87%` drift in naive pairwise $g_{\text{eff}}$ vs. `1.41%` in 3D FFT QUMOND vs. `1.03e-16` in Linear $\mathcal{K}_\Omega$).
-   * **Candid Falsification:** Even with Milky Way External Field Effect ($M_{\text{MW}} = 8.8 \times 10^{10}\ M_\odot$), QUMOND yields triad $\chi^2 = 71.73$ ($\chi^2/3 = 23.91$) — overpredicting Palomar 14 (`0.998 km/s`, `+5.15σ`) and NGC 2419 (`5.599 km/s`, `+3.04σ`) while underpredicting Draco dSph (`1.906 km/s`, `-6.00σ`).
-   * **Outputs:** [`qumond_satellite_summary.csv`](qumond_audit/qumond_satellite_summary.csv), [`qumond_time_series.csv`](qumond_audit/qumond_time_series.csv), [`qumond_nbody_benchmark.png`](qumond_audit/qumond_nbody_benchmark.png).
-
-   ```bash
-   python tools/qumond_nbody_testbed.py --target all --particles 10000 --grid 64 --crossings 50 --out-dir qumond_audit
-   ```
-
-2. **Zero-Parameter `3 P_δ` Cover Pocket N-Body Verification ([`tools/cover_pocket_nbody_testbed.py`](tools/cover_pocket_nbody_testbed.py) → [`cover_pocket_audit/`](cover_pocket_audit/cover_pocket_nbody_benchmark.png)):**
-   * Executes a `15`-run `64^3` linear-$\mathcal{K}_\Omega$ 3D FFT suite across **6 Milky Way satellites** (globular clusters Palomar 14 & NGC 2419 without pockets; dwarfs Segue 1, Draco, Ursa Minor & Sculptor inside zero-parameter `3 P_δ` Burkert Cover Pockets, $\Sigma_p = 169.47\ M_\odot/\text{pc}^2$), slashing the 3-target $\chi^2$ by **`64.0×`** (`71.73 -> 1.12`, $\chi^2/3 = 0.37$ with Live 2-Component Draco; all-6 $\chi^2/6 = 0.740$ for $r_0 = r_h$ and $0.995$ for universal $r_0 = 300\ \text{pc}$).
-   * **`30,000`-Particle Live 2-Component Draco Proof:** Evolves `10,000` live stars + `20,000` live Burkert pocket nodes simultaneously with zero COM recentering over `50 t_cross`, demonstrating cored stability ($r_{1/2,\text{pocket}}(50)/r_{1/2,0} = 0.950$, central core density ratio `1.187`, zero NFW cusp collapse) and **IEEE-754 linear momentum conservation (`4.00e-15`)**.
-   * **4-Disk Rotation Cross-Check (`DDO 154`, `NGC 3198`, `Milky Way`, `UGC 2885`):** Achieves `5.22%` mean error (`UGC 2885: +0.06%`) with emergent `a_BTFR = 8.9844e-11 m/s^2`.
-   * **Outputs:** [`cover_pocket_satellite_summary.csv`](cover_pocket_audit/cover_pocket_satellite_summary.csv), [`cover_pocket_time_series.csv`](cover_pocket_audit/cover_pocket_time_series.csv), [`cover_pocket_disk_check.csv`](cover_pocket_audit/cover_pocket_disk_check.csv), [`cover_pocket_nbody_benchmark.png`](cover_pocket_audit/cover_pocket_nbody_benchmark.png).
-
-   ```bash
-   python tools/cover_pocket_nbody_testbed.py --particles 10000 --pocket-particles 20000 --grid 64 --crossings 50 --out-dir cover_pocket_audit
-   ```
-
-3. **Bullet Cluster `1E 0657-56` Merger & Lensing Testbed ([`tools/bullet_cluster_testbed.py`](tools/bullet_cluster_testbed.py) → [`bullet_audit/`](bullet_audit/bullet_cluster_benchmark.png)):**
-   * Evolves `33,000`-particle (`96^3` 3D FFT, `900 Myr`) 3-species cluster collisions comparing `3 P_δ` (`169.47`), `Σ_0/3` (`2,599.82`), and `Σ_0` (`4,503.03 M☉/pc²`) alongside a live Two-Condition Compilation Gate ablation (`ICM Passive` vs. `ICM Active`).
-   * **`Σ_0/3 (ICM Passive)` Benchmark Match:** Reaches $\Delta x_{\text{lens}} = 739.9\ \text{kpc}$ (`t = 798 Myr`), leaves shocked X-ray gas stalled (`281.9 / 320.0 kpc` lensing-to-X-ray offsets), forms both strong-lensing critical curves ($R_E = 175.6 / 71.4\ \text{kpc}$), recovers Bullet $M_{2D}(<250\ \text{kpc}) = 1.94 \times 10^{14}\ M_\odot$ (vs. Paraficz+ 2016 $2.1 \pm 0.2 \times 10^{14}\ M_\odot$), keeps shocked ICM strictly passive ($\Lambda_{\text{lock,sub}} = 0.058 < 1$), bounds $\mathcal{C}_\delta$ crossing drag to `0.145 kpc`, and conserves momentum to `4.54e-15` — whereas `ICM Active` collapses the offset (`9.4 / 21.0 kpc`, $\Delta x_{\text{lens}} = 273.0\ \text{kpc}$) and `3 P_δ` stays sub-critical ($\kappa = 0.20$).
-   * **Outputs:** [`bullet_cluster_summary.csv`](bullet_audit/bullet_cluster_summary.csv), [`bullet_cluster_trajectory.csv`](bullet_audit/bullet_cluster_trajectory.csv), [`bullet_cluster_benchmark.png`](bullet_audit/bullet_cluster_benchmark.png).
-
-   ```bash
-   python tools/bullet_cluster_testbed.py --out-dir bullet_audit
-   ```
-
----
-
-## 🧪 Verification Benchmark & CLI
-
-Run the headless 18-module verification harness directly from the repository root using [`tools/benchmark_dashboard.py`](tools/benchmark_dashboard.py):
-
-```bash
-python tools/benchmark_dashboard.py
-```
-
-This benchmark validates:
-1. Exact closed-form first-principles constants derived in [`modules/data_loader.py`](modules/data_loader.py) without CODATA $G$, including the Two-Ceiling Cover Pocket invariants (`η_pocket`, `Σ_p(gal)`, `Σ_p(cluster)`, `a_BTFR`, `1/(9 C_δ)`) and exact analytic Burkert 2D projection (`< 1e-6` error vs. `scipy.integrate.quad`).
-2. Orthogonal J2000 Galactic-to-ICRS sky coordinate alignment (`R_GAL_TO_ICRS`) verified against `astropy.coordinates.SkyCoord` (`< 1e-14` error).
-3. Headless execution across all **18 computational modules** under `mass_mode="multiband"`, including dual-mode checks of Module 9 (Cover Pocket + Legacy Rotation Curves) and Module 14 (Bullet Cluster $\Sigma_0/3$ & Milky Way $3P_\delta$ Cover Pocket + Legacy Abell 1689 Lensing).
-4. Zero-parameter **Two-Condition Compilation Gate** regression checks (`E_Ryd = 13.6057 eV`, `T_lock = 105,258.34 K`, Cool-Core Perseus `r_lock = 5.42 kpc`, `8 PASSIVE / 8 COMPILED`) and **4-Tier Photometric Mass Audit**.
 
 ---
 
