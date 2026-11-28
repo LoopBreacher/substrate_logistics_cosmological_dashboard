@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+from scipy.integrate import quad
 from scipy.spatial import cKDTree
 
 # Silence noisy bare-mode Streamlit cache warnings when executed outside `streamlit run`
@@ -59,7 +60,6 @@ from modules.data_loader import (
     M_PION_MEV,
     R_YUKAWA_FM,
     DISK_TRUNCATION_RATIO,
-    M_PROTON,
     M_SOLAR_KG,
     E_RYD_J,
     T_LOCK_RYD_K,
@@ -69,9 +69,25 @@ from modules.data_loader import (
     M_L_B,
     M_L_K,
     M_L_W1,
+    G_EFF,
+    DELTA_OMEGA_M,
+    F_BARYON_SUBSTRATE,
+    ETA_POCKET,
+    P_DELTA_3D_PA,
+    P_ISO_CLUSTER_PA,
+    N_POCKET_CLUSTER_BRIDGE,
+    G_3PDELTA_MS2,
+    G_ISO_CLUSTER_MS2,
+    SIGMA_POCKET_GALAXY_KGM2,
+    SIGMA_POCKET_GALAXY_MSUN_PC2,
+    SIGMA_POCKET_CLUSTER_MSUN_PC2,
+    A_BTFR_POCKET,
     R_GAL_TO_ICRS,
     galactic_to_icrs_vecs,
     compute_multiband_stellar_nodes,
+    compute_locked_pocket_r0_m,
+    burkert_3d_accel,
+    burkert_2d_proj_factor,
     load_density_tree,
     get_catalog_photometry_stats,
 )
@@ -178,11 +194,33 @@ def verify_constants_and_frames():
         ("B_QCD_MEV_FM3", f"{B_QCD_MEV_FM3:.6f}", "MeV/fm^3"),
         ("M_PION_MEV", f"{M_PION_MEV:.6f}", "MeV/c^2"),
         ("R_YUKAWA_FM", f"{R_YUKAWA_FM:.6f}", "fm"),
+        ("DELTA_OMEGA_M", f"{DELTA_OMEGA_M:.6f}", "dimensionless"),
+        ("ETA_POCKET", f"{ETA_POCKET:.6f}", "ratio"),
+        ("SIGMA_POCKET_GALAXY_MSUN_PC2", f"{SIGMA_POCKET_GALAXY_MSUN_PC2:.2f}", "M_sun/pc^2"),
+        ("SIGMA_POCKET_CLUSTER_MSUN_PC2", f"{SIGMA_POCKET_CLUSTER_MSUN_PC2:.2f}", "M_sun/pc^2"),
+        ("A_BTFR_POCKET", f"{A_BTFR_POCKET:.6e}", "m/s^2"),
+        ("N_POCKET_CLUSTER_BRIDGE", f"{N_POCKET_CLUSTER_BRIDGE:.2f}", "1/(9*C_delta)"),
     ]
     print("| Constant | Exact Value | Units |")
     print("| :--- | :--- | :--- |")
     for name, val, unit in invariants:
         print(f"| `{name}` | `{val}` | {unit} |")
+
+    assert abs(DELTA_OMEGA_M - 0.04780312) < 1e-6, f"DELTA_OMEGA_M={DELTA_OMEGA_M}"
+    assert abs(ETA_POCKET - 4.566048) < 1e-5, f"ETA_POCKET={ETA_POCKET}"
+    assert abs(SIGMA_POCKET_GALAXY_MSUN_PC2 - 169.47) < 0.05, f"SIGMA_POCKET_GAL={SIGMA_POCKET_GALAXY_MSUN_PC2}"
+    assert abs(SIGMA_POCKET_CLUSTER_MSUN_PC2 - 2599.82) < 0.05, f"SIGMA_POCKET_CLU={SIGMA_POCKET_CLUSTER_MSUN_PC2}"
+    assert abs(A_BTFR_POCKET - 8.9844e-11) < 1e-13, f"A_BTFR_POCKET={A_BTFR_POCKET}"
+    assert abs(N_POCKET_CLUSTER_BRIDGE - 235.34) < 0.02, f"N_POCKET_CLUSTER_BRIDGE={N_POCKET_CLUSTER_BRIDGE}"
+
+    # Verify analytic burkert_2d_proj_factor(X) against adaptive quadrature across X in [1e-3, 10.0]
+    x_checks = np.array([1.0e-3, 0.05, 0.5, 0.999, 1.0, 1.001, 2.0, 5.0, 10.0])
+    i_analytic = burkert_2d_proj_factor(x_checks)
+    i_quad = np.array(
+        [quad(lambda z: 2.0 / ((1.0 + np.sqrt(xv * xv + z * z)) * (1.0 + xv * xv + z * z)), 0.0, np.inf, limit=200)[0] for xv in x_checks]
+    )
+    max_proj_err = float(np.max(np.abs(i_analytic - i_quad)))
+    assert max_proj_err < 1.0e-6, f"burkert_2d_proj_factor error {max_proj_err}"
 
     orth_err = float(np.max(np.abs(R_GAL_TO_ICRS.T @ R_GAL_TO_ICRS - np.eye(3))))
     assert orth_err < 1e-14, f"R_GAL_TO_ICRS orthogonality error {orth_err}"
@@ -195,7 +233,8 @@ def verify_constants_and_frames():
     rot_err = float(np.max(np.abs(v_icrs_matrix - v_icrs_astropy)))
     assert rot_err < 1e-14, f"galactic_to_icrs_vecs error {rot_err}"
     print(f"\n- **Orthogonality Error (`max|R^T R - I|`):** `{orth_err:.3e}` (< 1e-14 PASS)")
-    print(f"- **Astropy Vector Transform Error:** `{rot_err:.3e}` (< 1e-14 PASS)\n")
+    print(f"- **Astropy Vector Transform Error:** `{rot_err:.3e}` (< 1e-14 PASS)")
+    print(f"- **Analytic Burkert 2D Projection Max Error (`X in [1e-3, 10.0]` vs `quad`):** `{max_proj_err:.3e}` (< 1e-6 PASS)\n")
 
 
 def validate_module_output(name, res):
@@ -250,7 +289,8 @@ def run_benchmark():
             tree=tree, gal_positions=gal_pos, nodes_per_galaxy=nodes, alpha_inflow=120.0, sigma_mpc=sigma_default, h_global=H_GLOBAL
         )),
         ("9. Galactic Rotation Curves", lambda: run_rotation_curve_analysis(
-            galaxy_target_name="NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL, disk_geometry="Freeman Thin Disk"
+            galaxy_target_name="NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL,
+            disk_geometry="Freeman Thin Disk", gravity_model="Cover Pocket (Linear K_Ω + 3 P_δ Burkert)"
         )),
         ("10. 3D Cosmic Web Viewer", lambda: run_3d_density_viewer_analysis(
             tree, gal_pos, nodes, names, sigma_mpc=sigma_default, h_global=H_GLOBAL, grid_res=18, max_galaxies=2000
@@ -265,7 +305,8 @@ def run_benchmark():
             tree, gal_pos, nodes, nside=32, d_max_mpc=min(20.0, d_max), sigma_mpc=sigma_default, h_global=H_GLOBAL
         )),
         ("14. Gravitational Lensing", lambda: run_lensing_analysis(
-            lens_target_name="Abell 1689 Core (Cluster Lens)", h_global=H_GLOBAL
+            lens_target_name="Bullet Cluster Subcluster (Bullet)", h_global=H_GLOBAL,
+            lensing_model="Cover Pocket (Linear K_Ω + Burkert)"
         )),
         ("15. Spatial Garbage Collection", lambda: run_spatial_garbage_collection_analysis(
             preset_key="Earth", r_max_ratio=10.0
@@ -302,17 +343,50 @@ def run_benchmark():
     # ==========================================
     print("## 3. Physics Spot Checks & Regression Guards\n")
 
+    # Module 9: Both Cover Pocket Mode (NGC 3198, DDO 154, UGC 2885) and Legacy Underflow Mode
+    _, m_cp_ngc = validate_module_output(
+        "NGC3198_CoverPocket", run_rotation_curve_analysis(
+            "NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL,
+            disk_geometry="Freeman Thin Disk", gravity_model="Cover Pocket (Linear K_Ω + 3 P_δ Burkert)"
+        )
+    )
+    _, m_cp_ddo = validate_module_output(
+        "DDO154_CoverPocket", run_rotation_curve_analysis(
+            "DDO 154 (Gas-Rich Dwarf Galaxy)", h_global=H_GLOBAL,
+            disk_geometry="Freeman Thin Disk", gravity_model="Cover Pocket (Linear K_Ω + 3 P_δ Burkert)"
+        )
+    )
+    _, m_cp_ugc = validate_module_output(
+        "UGC2885_CoverPocket", run_rotation_curve_analysis(
+            "UGC 2885 (Giant Spiral Benchmark)", h_global=H_GLOBAL,
+            disk_geometry="Freeman Thin Disk", gravity_model="Cover Pocket (Linear K_Ω + 3 P_δ Burkert)"
+        )
+    )
+    assert "169.47" in m_cp_ngc["Pocket Surface Density (Σ_p)"], m_cp_ngc
+
     _, m_freeman = validate_module_output(
-        "NGC3198_Freeman", run_rotation_curve_analysis("NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL, disk_geometry="Freeman Thin Disk")
+        "NGC3198_Freeman", run_rotation_curve_analysis(
+            "NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL,
+            disk_geometry="Freeman Thin Disk", gravity_model="Legacy Underflow (a_Ω)"
+        )
     )
     _, m_spherical = validate_module_output(
-        "NGC3198_Spherical", run_rotation_curve_analysis("NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL, disk_geometry="Spherical Enclosed Mass")
+        "NGC3198_Spherical", run_rotation_curve_analysis(
+            "NGC 3198 (Classic Spiral Benchmark)", h_global=H_GLOBAL,
+            disk_geometry="Spherical Enclosed Mass", gravity_model="Legacy Underflow (a_Ω)"
+        )
     )
     _, m_ddo_f = validate_module_output(
-        "DDO154_Freeman", run_rotation_curve_analysis("DDO 154 (Gas-Rich Dwarf Galaxy)", h_global=H_GLOBAL, disk_geometry="Freeman Thin Disk")
+        "DDO154_Freeman", run_rotation_curve_analysis(
+            "DDO 154 (Gas-Rich Dwarf Galaxy)", h_global=H_GLOBAL,
+            disk_geometry="Freeman Thin Disk", gravity_model="Legacy Underflow (a_Ω)"
+        )
     )
     _, m_ddo_s = validate_module_output(
-        "DDO154_Spherical", run_rotation_curve_analysis("DDO 154 (Gas-Rich Dwarf Galaxy)", h_global=H_GLOBAL, disk_geometry="Spherical Enclosed Mass")
+        "DDO154_Spherical", run_rotation_curve_analysis(
+            "DDO 154 (Gas-Rich Dwarf Galaxy)", h_global=H_GLOBAL,
+            disk_geometry="Spherical Enclosed Mass", gravity_model="Legacy Underflow (a_Ω)"
+        )
     )
     assert m_ddo_f["Transition Radius (R*)"] == "Deep Underflow (< a_Ω)", m_ddo_f
     assert m_ddo_s["Transition Radius (R*)"] == "Deep Underflow (< a_Ω)", m_ddo_s
@@ -336,9 +410,30 @@ def run_benchmark():
         "CMB cache did not invalidate across distinct catalog_sig inputs!"
     )
 
-    # Phase 2 spot checks: Lensing (1 - b), Garbage Collection R_quantum & Sgr A* Kernel Lock, S8 Smooth/Strict, P_delta 4-Regime
-    _, m_lens = captured["14. Gravitational Lensing"]
+    # Module 14: Cover Pocket Mode (Bullet Subcluster Σ_0/3 + Milky Way 3 P_δ) and Legacy Mode (Abell 1689)
+    t_lens_0 = time.perf_counter()
+    _, m_lens = validate_module_output(
+        "Bullet_Subcluster_CoverPocket",
+        run_lensing_analysis("Bullet Cluster Subcluster (Bullet)", h_global=H_GLOBAL, lensing_model="Cover Pocket (Linear K_Ω + Burkert)")
+    )
+    lens_ms = (time.perf_counter() - t_lens_0) * 1000.0
     assert m_lens["SZ-Lensing Cluster Bias (1-b)"].startswith("0.8203"), m_lens
+    re_bullet = float(m_lens["Einstein Radius (R_E)"].split()[0])
+    m2d_bullet = float(m_lens["M_2D (< 250 kpc)"].split()[0])
+    assert 75.0 <= re_bullet <= 95.0, f"Unexpected Bullet R_E={re_bullet}"
+    assert 1.8e14 <= m2d_bullet <= 2.4e14, f"Unexpected Bullet M_2D(<250)={m2d_bullet}"
+
+    _, m_lens_mw = validate_module_output(
+        "MilkyWay_CoverPocket",
+        run_lensing_analysis("Milky Way (Total Baryonic Footprint)", h_global=H_GLOBAL, lensing_model="Cover Pocket (Linear K_Ω + Burkert)")
+    )
+    assert "3 P_δ" in m_lens_mw["Hardware Pressure Ceiling"] and "Sub-critical" in m_lens_mw["Einstein Radius (R_E)"], m_lens_mw
+
+    _, m_lens_leg = validate_module_output(
+        "Abell1689_Legacy",
+        run_lensing_analysis("Abell 1689 Core (Cluster Lens)", h_global=H_GLOBAL, lensing_model="Legacy Linear Scaffold (a_Ω)")
+    )
+    assert m_lens_leg["SZ-Lensing Cluster Bias (1-b)"].startswith("0.8203"), m_lens_leg
 
     assert m_earth_gc["Top-Down Quantum Radius"] == "6,371.20 km", m_earth_gc
     _, m_sgra_gc = validate_module_output("SgrA_GC", run_spatial_garbage_collection_analysis("Sagittarius A*"))
@@ -386,11 +481,12 @@ def run_benchmark():
     r_gc_val = float(df18.loc[df18["System"] == "Circumgalactic Halo Cutoff (R_GC)", "Substrate_Predicted"].iloc[0])
     assert abs(r_gc_val - 525.55) <= 0.05, f"Unexpected R_GC: {r_gc_val}"
 
-    print(f"- **NGC 3198 (Freeman):** `v_flat={m_freeman['Flat Asymptotic Velocity']}`, `R*={m_freeman['Transition Radius (R*)']}`, `Focus={m_freeman['Velocity @ Focus (r_focus)']}`, `R_trunc={m_freeman['Disk Truncation (3.829 R_d)']}`")
-    print(f"- **NGC 3198 (Spherical):** `v_flat={m_spherical['Flat Asymptotic Velocity']}`, `R*={m_spherical['Transition Radius (R*)']}`, `Focus={m_spherical['Velocity @ Focus (r_focus)']}`, `R_trunc={m_spherical['Disk Truncation (3.829 R_d)']}`")
+    print(f"- **Cover Pocket Rotation (Freeman):** `NGC 3198` `r0={m_cp_ngc['Locked Pocket Core (r_0)']}` (`{m_cp_ngc['Velocity @ Focus (r_focus)']}`) | `DDO 154` `r0={m_cp_ddo['Locked Pocket Core (r_0)']}` (`{m_cp_ddo['Velocity @ Focus (r_focus)']}`) | `UGC 2885` `r0={m_cp_ugc['Locked Pocket Core (r_0)']}` (`{m_cp_ugc['Velocity @ Focus (r_focus)']}`)")
+    print(f"- **Legacy NGC 3198 (Freeman):** `v_flat={m_freeman['Flat Asymptotic Velocity']}`, `R*={m_freeman['Transition Radius (R*)']}`, `Focus={m_freeman['Velocity @ Focus (r_focus)']}`, `R_trunc={m_freeman['Disk Truncation (3.829 R_d)']}`")
+    print(f"- **Legacy NGC 3198 (Spherical):** `v_flat={m_spherical['Flat Asymptotic Velocity']}`, `R*={m_spherical['Transition Radius (R*)']}`, `Focus={m_spherical['Velocity @ Focus (r_focus)']}`, `R_trunc={m_spherical['Disk Truncation (3.829 R_d)']}`")
     print(f"- **DDO 154 Underflow Check:** Freeman `{m_ddo_f['Transition Radius (R*)']}` | Spherical `{m_ddo_s['Transition Radius (R*)']}` (PASS)")
     print(f"- **Earth GC:** `g_Omega={m_earth_gc['Surface Acceleration (g_Ω)']}` | Purge Rate: `{m_earth_gc['Surface Pixel Purge Rate']}` | `R_quantum={m_earth_gc['Top-Down Quantum Radius']}` | Sgr A*: `{m_sgra_gc['Kernel Lock Safety Margin']}`")
-    print(f"- **Lensing Cluster Bias:** `1 - b = {m_lens['SZ-Lensing Cluster Bias (1-b)']}` (PASS)")
+    print(f"- **Cover Pocket Lensing (Bullet Subcluster):** `{m_lens['Hardware Pressure Ceiling']}` | `R_E={m_lens['Einstein Radius (R_E)']}` | `M_2D(<250)={m_lens['M_2D (< 250 kpc)']}` (`{lens_ms:.1f} ms`) | MW: `{m_lens_mw['Einstein Radius (R_E)']}` | Legacy Abell 1689: `1-b={m_lens_leg['SZ-Lensing Cluster Bias (1-b)']}` (PASS)")
     print(f"- **S8 Weak Lensing ({cat_label}):** Smooth `<S8>={m_s8_sm['Catalog Mean <S8>']}` | Strict `<S8>={m_s8_st['Catalog Mean <S8>']}` | Tiers `{m_s8_sm['Void Floor (S8_void)']} / {m_s8_sm['Global Baseline (S8_global)']} / {m_s8_sm['Cluster Core (S8_core)']}`")
     print(f"- **Two-Condition Phase Gate:** `T_lock={T_LOCK_RYD_K:,.2f} K` (`{m_phase['Benchmarks Compiled']}`, 8 PASSIVE / 8 COMPILED PASS) | Cool-Core `r_lock={m_phase['Cool-Core Crossover (r_lock)']}`")
     print(f"- **P_delta 4-Regime Floor:** `B_QCD={m_pd['MIT Bag Floor (B_QCD)']}` | `Pion/Yukawa={m_pd['Derived Pion / Yukawa']}` | `TS/HP={m_pd['Shock / Heliopause']}` | `Disk/Bubbles={m_pd['Disk Cliff / Bubbles']}` | `R_GC={r_gc_val:.2f} kpc`")

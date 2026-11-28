@@ -1,139 +1,65 @@
-# Substrate Galactic Lensing: Zero-Dark-Matter Optical Deflection & NFW Halo Eradication
+# Substrate Galactic Lensing: Unified Two-Ceiling Cover Pocket & Strong/Weak Lensing Engine
 
 ## 🌟 Executive Summary
 
-The `substrate_galactic_lensing` module models optical light deflection and dimensionless convergence profiles ($\kappa$) across galaxy and cluster scales without particle dark matter halos. By decoupling localized baryonic spatial address deletion ($\theta_{\text{baryon}} \propto 1/b$) from the linear metric unspooling tax ($\theta_{\text{scaffold}} \propto b$), the engine demonstrates that standard cosmology mistakes background expansion drag for quadratic Dark Matter halos ($M_{\text{DM}} \propto b^2$). The module dynamically calculates physical crossover horizons ($b_{\text{cross}}$ and $b_{1:1}$), establishing zero-parameter predictions for optical deflection parity and halo mass illusions across both preset targets and live 3D survey catalogs.
+The `substrate_galactic_lensing` module models 2D optical light deflection $\theta(b)$, surface convergence $\kappa(b)$, enclosed mean convergence $\bar{\kappa}(<b)$, strong-lensing Einstein radii $R_E$, and projected cylinder masses $M_{2D}(<250\ \text{kpc})$ without particle dark matter. It provides two selectable physical architectures:
+
+1. **Topological Cover Pocket Lensing (Linear $\mathcal{K}_\Omega$ + Burkert, Default):** Evaluates exact closed-form 2D projected Burkert surface density $\Sigma_{2D}(X)$ across both the **Galaxy Pressure Floor ($3 P_\delta \implies \Sigma_p = 169.47\ M_\odot/\mathrm{pc}^2$)** and the **Isotropic Cluster Ceiling ($\Sigma_0 / 3 \implies \Sigma_p = 2,599.82\ M_\odot/\mathrm{pc}^2$)** linked by the exact topological bridge $1 / (9\mathcal{C}_\delta) = 235.34$.
+2. **Legacy Linear Scaffold ($a_\Omega$):** Preserves the $1/b$ Hernquist baryonic term plus $\theta_{\text{scaffold}} = 4 a_\Omega b / c^2$ and $M_{\text{DM,inferred}} \propto b^2$ diagnostics.
+
+Both modes report the zero-parameter **SZ-to-Lensing Hydrostatic Cluster Mass Bias** $(1 - b) = \Omega_{m,\text{void}} / \Omega_{m,\text{global}} = 0.8203$ (`-17.97%`).
 
 ---
 
 ## 🔬 Physical Foundation & First Principles
 
-### 1. Dual-Component Optical Deflection Angle ($\theta$)
+### 1. Unified Two-Ceiling Cover Pocket Architecture
+* **Galaxy Floor ($M_B < 5 \times 10^{12}\ M_\odot$):**
+  $$P_{\text{cap}} = 3 P_\delta = 8.5017 \times 10^{-13}\ \text{Pa} \implies g_{3P_\delta} = 3.7756 \times 10^{-11}\ \text{m/s}^2 \implies \Sigma_{p,\text{gal}} = 169.47\ M_\odot/\text{pc}^2$$
+* **Isotropic Cluster Ceiling ($M_B \ge 5 \times 10^{12}\ M_\odot$):**
+  $$P_{\text{cap}} = \frac{\Sigma_0}{3} = 2.0008 \times 10^{-10}\ \text{Pa} \implies g_{\text{iso}} = 5.7921 \times 10^{-10}\ \text{m/s}^2 \implies \Sigma_{p,\text{cluster}} = 2,599.82\ M_\odot/\text{pc}^2$$
+* **Exact Cluster-to-Galaxy Hardware Bridge:**
+  $$\frac{P_{\text{iso,cluster}}}{3 P_\delta} = \frac{\Sigma_0 / 3}{3\,\mathcal{C}_\delta\,\Sigma_0} = \frac{1}{9\mathcal{C}_\delta} = 235.337$$
+* **Mass-Locked Core Radius:**
+  $$r_0 = \sqrt{\frac{\eta_{\text{pocket}} M_B}{\pi\,\Sigma_p\,m_{\text{fac}}(x_{v,\max})}}, \qquad \eta_{\text{pocket}} = \frac{\Omega_{m,\text{void}}}{\Omega_{m,\text{global}} - \Omega_{m,\text{void}}} = 4.566048$$
 
-Light traversing past a baryonic mass concentration experiences optical bending from two distinct physical mechanisms:
+### 2. Fast Analytic 2D Burkert Lensing Projection
+Instead of slow nested `scipy.integrate.quad` loops, [`modules/data_loader.py`](../modules/data_loader.py) evaluates the exact closed-form projected factor $I(X) = \Sigma_{2D}(X) / (\rho_0 r_0)$ vectorized across $X = b / r_0$ (`< 1e-11` agreement with adaptive quadrature across `[1e-3, 10.0]`):
+* `X < 1e-5`: $\pi / 2$
+* `1e-5 <= X < 1 - 1e-4`: $\frac{\pi}{2s} + \frac{\ln(s+1)}{s} - \frac{\ln(1+q)}{q} - \ln X\left(\frac{1}{s} - \frac{1}{q}\right)$, with $s = \sqrt{1+X^2}$, $q = \sqrt{1-X^2}$
+* `|X - 1| <= 1e-4`: smooth linear bridge around $I(1) = \frac{\pi}{2\sqrt{2}} + \frac{\ln(\sqrt{2}+1)}{\sqrt{2}} - 1$ with exact slope $-2/3$
+* `X > 1 + 1e-4`: $\frac{\pi}{2s} + \frac{\operatorname{arctanh}(1/s)}{s} - \frac{\arccos(1/X)}{\sqrt{X^2-1}}$
 
-$$\theta_{\text{total}}(b) = \theta_{\text{baryon}}(b) + \theta_{\text{scaffold}}(b)$$
+Integrating $M_{2D,\text{pocket}}(<b) = 2\pi \int_0^b b'\Sigma_{2D}(b')\,db'$ via `cumulative_trapezoid` on a 2,000-point log grid and adding the compiled Hernquist baryonic contribution ($f_{\text{comp}} = 0.15$ for passive hot ICM clusters under the Two-Condition Compilation Gate; $f_{\text{comp}} = 1.0$ for galaxies) yields exact deflection angles, convergence profiles, and strong-lensing Einstein radii ($\bar{\kappa}(<R_E) = 1.0$) in `< 50 ms`.
 
-* **Localized Baryonic Spatial Address Deletion ($\theta_{\text{baryon}}$):**
-Deflection caused by visible baryonic mass compiled in spatial nodes ($N_B = M_B / m_p$):
-
-$$\theta_{\text{baryon}}(b) = \frac{4 N_B(b) \mathcal{K}_\Omega}{c^2 b} = \frac{4 G M_B(b)}{c^2 b}$$
-
-
-* **Metric Scaffolding Unspooling Tax ($\theta_{\text{scaffold}}$):**
-A linear metric expansion tax incurred as photons traverse expanding background space governed by the dynamic baseline acceleration $a_\Omega = \frac{c H_{\text{local}}}{2\pi}$:
-
-$$\theta_{\text{scaffold}}(b) = \frac{4 a_\Omega b}{c^2}$$
-
-
-
-### 2. Extended Mass Profile (Hernquist Projected Distribution)
-
-To eliminate central point-mass mathematical singularities ($b \to 0$) in cluster cores, enclosed baryonic mass is evaluated via a projected Hernquist profile with scale radius $a_{\text{scale}}$:
-
-$$M_{\text{enc}}(b) = M_B \left[ \frac{b^2}{(b + a_{\text{scale}})^2} \right]$$
-
-* **Core Behavior ($b \ll a_{\text{scale}}$):** $M_{\text{enc}}(b) \propto b^2$, holding core deflection finite at $b = 0$.
-* **Asymptotic Boundary ($b \gg a_{\text{scale}}$):** Enclosed mass converges smoothly to $100\%$ of total visible baryonic mass ($M_B$).
-
-### 3. Inferred Dark Matter Halo Illusion ($M_{\text{DM}} \propto b^2$)
-
-When standard general relativity fits assume optical deflection is produced entirely by localized mass rather than background metric unspooling, equating $\theta_{\text{scaffold}}$ to a mass term generates an artificial quadratic dark matter halo:
-
-$$N_{\text{DM}}(b) = \frac{a_\Omega b^2}{\mathcal{K}_\Omega} \implies M_{\text{DM}}(b) = \frac{a_\Omega b^2}{G}$$
-
-This reproduces the $M_{\text{DM}} \propto b^2$ quadratic mass growth characteristic of empirical Navarro-Frenk-White (NFW) cluster halo profiles.
-
-### 4. Zero-Parameter Physical Horizons ($b_{\text{cross}}$ and $b_{1:1}$)
-
-The module analytically derives two physical transition horizons:
-
-* **1:1 Enclosed Mass Radius ($b_{\text{cross}}$):**
-The impact parameter where optical deflection parity occurs ($\theta_{\text{baryon}} = \theta_{\text{scaffold}}$) and inferred dark matter equals enclosed baryonic mass ($M_{\text{DM,inferred}} = M_{\text{baryon,enclosed}}$):
-
-$$b_{\text{cross}} = \sqrt{\frac{M_{\text{baryon}} \mathcal{K}_\Omega M_\odot}{a_\Omega m_p}} - a_{\text{scale}}$$
-
-
-* **1:1 Total Mass Horizon ($b_{1:1}$):**
-The impact parameter where inferred dark matter equals $100\%$ of the target's total visible baryonic mass ($M_{\text{DM,inferred}} = M_{\text{baryon,total}}$):
-
-$$b_{1:1,\text{total}} = \sqrt{\frac{M_{\text{baryon}} \mathcal{K}_\Omega M_\odot}{a_\Omega m_p}}$$
-
-
+### 3. Legacy Linear Scaffold Overlay ($a_\Omega$)
+When running in Legacy mode, deflection follows:
+$$\theta_{\text{total}}(b) = \frac{4 N_B(b)\mathcal{K}_\Omega}{c^2 b} + \frac{4 a_\Omega b}{c^2}, \qquad M_{\text{DM,inferred}}(b) = \frac{a_\Omega b^2}{\mathcal{K}_\Omega} m_p$$
 
 ---
 
 ## ⚙️ Architectural & Technical Implementation
 
-* **Primary Driver Function:** `run_lensing_analysis(...)`
-* **Core Profile Evaluator:** `calculate_lensing_profile(...)`
-* **Zero-Parameter Bounds Calculator:** `_compute_zero_parameter_lensing_bounds(...)`
-
-### Input Parameters
-
-* `lens_target_name`: Name string for benchmark presets or active catalog targets.
-* `custom_M_baryon`: Total visible baryonic mass $M_B$ in solar masses ($M_\odot$).
-* `custom_scale_radius_kpc`: Hernquist scale radius $a_{\text{scale}}$ in kpc.
-* `h_global`: Global vacuum expansion floor $H_{\text{global}}$ ($\text{km/s/Mpc}$).
-* `use_log_scale`: Boolean flag toggling logarithmic plot scaling.
-* `use_catalog_query`: Boolean flag enabling live 3D KD-Tree catalog queries.
-* `target_pos_mpc`: 3D Cartesian coordinates $[X, Y, Z]$ of catalog target in Mpc.
-* `sigma_mpc`: Gaussian smoothing scale $\sigma$ for density evaluation.
-* `tree`, `gal_positions`, `nodes_per_galaxy`: Shared spatial catalog structures.
-
-### Algorithmic Execution Pipeline
-
-1. **Density Sampling:** If `use_catalog_query=True`, queries the active `cKDTree` dataset to derive localized compiled node density $\rho_N(\vec{r})$, local expansion rate $H_{\text{local}}(\vec{r})$, and dynamic baseline acceleration $a_\Omega(\vec{r})$.
-2. **Horizon & Grid Calculation:** Computes zero-parameter physical bounds $b_{\text{cross}}$ and $b_{1:1}$, constructing a 300-point linear or logarithmic impact parameter grid $b \in [b_{\text{min}}, b_{\text{max}}]$.
-3. **Profile Synthesis:** Evaluates $\theta_{\text{total}}$, $\theta_{\text{baryon}}$, $\theta_{\text{scaffold}}$, $M_{\text{DM,inferred}}(b)$, and dimensionless convergence $\kappa(b)$.
-4. **Adaptive Graphic & Table Generation:** Renders dual-panel Matplotlib figures with dynamic mass units ($M_\odot$, $10^6 M_\odot$, $10^9 M_\odot$, $10^{12} M_\odot$) and formats output DataFrames with scientific precision for sub-arcsecond deflection values.
+* **Primary UI Driver:** `run_lensing_analysis(..., lensing_model="Cover Pocket (Linear K_Ω + Burkert)", ceiling_mode="Auto (3 P_δ Galaxy / Σ_0/3 Cluster)")`
+* **Cover Pocket Lensing Engine:** `calculate_cover_pocket_lensing_profile(...)`
+* **Presets (`LENS_PRESETS`):** `Bullet Cluster Subcluster (Bullet)` ($3.8 \times 10^{13}\ M_\odot$, $z_l = 0.296$), `Bullet Cluster Main (1E 0657-56)` ($1.1 \times 10^{14}\ M_\odot$, $z_l = 0.296$), `Abell 1689 Core (Cluster Lens)` ($1.5 \times 10^{14}\ M_\odot$, $z_l = 0.183$), and `Milky Way (Total Baryonic Footprint)` ($8.8 \times 10^{10}\ M_\odot$).
 
 ---
 
-## 📊 Visual Diagnostic Output & Graphics
+## 📊 Visual Diagnostic Output & Export Schema
 
-* **Panel 1 (Light Deflection Profile):** Plots total deflection angle $\theta_{\text{total}}(b)$ [red], local baryonic component $\theta_{\text{baryon}}(b)$ [dashed blue], and scaffolding tax $\theta_{\text{scaffold}}(b)$ [dotted purple]. A vertical green guide line highlights the crossover focus $b_{\text{cross}}$ where deflection parity ($50\%$) occurs.
-* **Panel 2 (Dark Matter Halo Illusion):** Plots inferred halo mass $M_{\text{DM}}(b) \propto b^2$ [solid orange] against the true baryonic baseline $M_{\text{baryon}}$ [dashed blue]. A vertical cyan guide line marks the $1:1$ Total Mass Horizon $b_{1:1}$ where $M_{\text{DM,inferred}} = M_{\text{baryon,total}}$. For cluster-scale lenses ($M_B \ge 10^{12} M_\odot$), a dash-dot magenta horizontal reference line marks the **Weak-Lensing Hydrostatic Baseline** $(1-b) M_B = 0.8203\,M_B$ linking lensing directly to the $S_8$ 120-cell compilation filter (and cool-core vs. non-cool-core phase-lock split).
-
----
-
-## 🎯 KPI Metrics & Export Deliverables
-
-| Metric Key | Display Format / Unit | Physical Meaning |
-| --- | --- | --- |
-| `Target Baseline Acceleration (a_Ω)` | `m/s²` (e.g., `1.043e-10 m/s²`) | Dynamic acceleration baseline derived from local expansion $H_{\text{local}}$. |
-| `Local Expansion Rate (H_local)` | `km/s/Mpc` | Local unspooling rate at target 3D spatial position. |
-| `1:1 Enclosed Mass Radius (b_cross)` | `kpc` | Impact parameter where $`M_{\text{DM,inferred}} = M_{\text{baryon,enclosed}}`$ ($`\theta_{\text{baryon}} = \theta_{\text{scaffold}}`$). |
-| `1:1 Total Mass Horizon (b_1:1)` | `kpc` | Impact parameter where $`M_{\text{DM,inferred}} = M_{\text{baryon,total}}`$. |
-| `Deflection @ Crossover` | `arcsec` | Optical light bending angle evaluated at $b_{\text{cross}}$. |
-| `Total Dark/Light @ b_cross` | Ratio (e.g., `0.43 : 1`) | Inferred dark mass relative to total visible baryonic mass at $b_{\text{cross}}$. |
-| `SZ-Lensing Cluster Bias (1-b)` | `0.8203 (-17.97%)` | Zero-parameter hydrostatic cluster mass bias ratio $`\Omega_{m,\text{void}} / \Omega_{m,\text{global}}`$. |
-
-### CSV Export Schema (`substrate_gravitational_lensing.csv`)
-
-* `impact_parameter_kpc`: Radial distance $b$ from lens center in kpc.
-* `theta_total_arcsec`: Total optical deflection angle $\theta_{\text{total}}$ in arcseconds.
-* `theta_baryon_arcsec`: Baryonic deflection component $\theta_{\text{baryon}}$ in arcseconds.
-* `theta_scaffold_arcsec`: Metric scaffolding tax $\theta_{\text{scaffold}}$ in arcseconds.
-* `convergence_kappa`: Dimensionless angular convergence $\kappa$.
-* `inferred_M_DM_solar`: Inferred dark matter halo mass illusion $M_{\text{DM}}$ in $M_\odot$.
-* `dark_to_light_ratio`: Ratio of $M_{\text{DM,inferred}}(b) / M_{\text{baryon,total}}$.
+* **Cover Pocket Mode Plots:**
+  * **Panel 1 (Deflection Angle $\theta(b)$):** Plots Total, Burkert Cover Pocket, Compiled Baryons, and Legacy $a_\Omega$ Scaffold overlay with vertical $r_0$ and $R_E$ markers.
+  * **Panel 2 (2D Convergence):** Plots local $\kappa(b)$ and enclosed mean $\bar{\kappa}(<b)$ against the $\kappa = 1.0$ Strong-Lensing Critical Line, highlighting $R_E$, $M_{2D}(<250\ \text{kpc})$, $(1-b) = 0.8203$, and the $1/(9\mathcal{C}_\delta)$ bridge.
+* **CSV Export Schema (Cover Pocket Mode):** `impact_parameter_kpc`, `theta_total_arcsec`, `theta_baryon_arcsec`, `theta_pocket_arcsec`, `theta_legacy_scaffold_arcsec`, `kappa_local`, `kappa_mean_enclosed`, `M_2D_pocket_solar`, `M_2D_total_solar`.
 
 ---
 
-## ⚡ Performance Benchmarks & Catalog Behavioral Notes
+## ⚡ Verified Benchmark Presets ($z_s = 1.0$, $H_{\text{global}} = 67.4275\ \text{km/s/Mpc}$)
 
-### Execution Benchmarks
-
-* **Preset Lens Benchmark Mode:** `< 0.01s` (Instantaneous analytical profile calculation)
-* **UNG 2013 (≤ 35 Mpc,):** `~0.02s` per spatial query
-* **Cosmicflows-4 (≤ 150 Mpc,):** `~0.05s` per spatial query
-* **2M++ Infrared (≤ 200 Mpc,):** `~0.08s` per spatial query
-
-### Dynamic Horizon Response Across Mass Scales
-
-* **Cluster Core Scale ($M_B \ge 10^{13} M_\odot$):** Crossover radius expands to $b_{\text{cross}} \sim 70\text{--}150\text{ kpc}$, reproducing arc distortion radii in rich clusters like Abell 1689.
-* **Milky Way Scale ($M_B \sim 1.5 \times 10^{11} M_\odot$):** Crossover occurs at $b_{\text{cross}} \approx 6.16\text{ kpc}$ and $b_{1:1} \approx 14.16\text{ kpc}$, explaining flat galactic deflection profiles without cold dark matter halos.
-* **Dwarf Galaxy Scale ($M_B \sim 10^6\text{--}10^8 M_\odot$):** Crossover contracts to sub-kiloparsec scales ($b_{\text{cross}} < 1.0\text{ kpc}$), where the scaffolding tax rapidly dominates outer light deflection profiles.
-
----
+| Lens Preset | Active Ceiling ($\Sigma_p$) | Locked $r_0$ [kpc] | Peak $\kappa(0)$ | Einstein Radius $R_E$ [kpc] | $M_{2D}(<250\ \text{kpc})$ [$M_\odot$] |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| **Bullet Cluster Subcluster (`Bullet`)** | $\Sigma_0/3$ (`2,599.82 M☉/pc²`) | `87.22` | `2.032` | `89.0` | `2.144e+14` |
+| **Bullet Cluster Main (`1E 0657-56`)** | $\Sigma_0/3$ (`2,599.82 M☉/pc²`) | `148.40` | `2.259` | `152.6` | `3.695e+14` |
+| **Abell 1689 Core** | $\Sigma_0/3$ (`2,599.82 M☉/pc²`) | `173.28` | `1.858` | `128.5` | `4.243e+14` |
+| **Milky Way** | $3P_\delta$ (`169.47 M☉/pc²`) | `16.44` | `0.257` | `Sub-critical (< 1.0)` | `1.402e+12` |

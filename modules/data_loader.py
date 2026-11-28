@@ -85,6 +85,39 @@ RHO_GC_EXACT     = (SIGMA_0_LEDGER / (C_LIGHT ** 2)) / M_PROTON # 3.9928 nodes/m
 RHO_GC_THRESHOLD = 4.0                                        # Integer 4-channel He^4 ceiling
 R_BAO_MPC        = (C_LIGHT * T_OMEGA * (3.0 * C_DELTA) / GEOM_SCALAR) / MPC_TO_METER # 149.2489 Mpc
 
+# ==========================================
+# TOPOLOGICAL COVER POCKET INVARIANTS (3 P_delta Galaxy Floor / Sigma_0/3 Cluster Ceiling)
+# ==========================================
+G_EFF                   = K_OMEGA / M_PROTON                      # 6.6716572739e-11 m^3/(kg*s^2)
+PC_TO_METER             = KPC_TO_METER / 1000.0
+MSUN_PC2_TO_KGM2        = M_SOLAR_KG / (PC_TO_METER ** 2)
+
+DELTA_OMEGA_M           = OMEGA_M_GLOBAL - OMEGA_M_VOID           # 0.047803 (-2.85% vs Planck Omega_b=0.04920)
+F_BARYON_SUBSTRATE      = DELTA_OMEGA_M / OMEGA_M_GLOBAL          # 0.179661 (17.97% cosmic baryon fraction)
+ETA_POCKET              = OMEGA_M_VOID / DELTA_OMEGA_M            # 4.566048 universal pocket-to-baryon mass ratio
+
+P_DELTA_3D_PA           = 3.0 * P_DELTA_MACRO_PA                  # 8.501710e-13 Pa (3D galaxy drag floor)
+P_ISO_CLUSTER_PA        = SIGMA_0_LEDGER / 3.0                    # 2.000768e-10 Pa (3D isotropic cluster ceiling)
+N_POCKET_CLUSTER_BRIDGE = P_ISO_CLUSTER_PA / P_DELTA_3D_PA        # 1 / (9 * C_delta) = 235.34 merged galaxy pockets
+
+# Exact Burkert dimensionless peak constants:
+# f_B(x) = [ln(1+x^2) + 2*ln(1+x) - 2*arctan(x)] / x^2
+BURKERT_X_GMAX          = 0.96341
+BURKERT_F_B_MAX         = 0.508967
+BURKERT_X_VMAX          = 3.24461
+BURKERT_V2_B_MAX        = 0.860619
+BURKERT_M_FAC_VMAX      = 2.792378                                # ln(1+x^2)+2ln(1+x)-2arctan(x) at x_vmax
+
+G_3PDELTA_MS2           = np.sqrt(8.0 * np.pi * G_EFF * P_DELTA_3D_PA)    # 3.7756e-11 m/s^2 (Gentile+ 2009)
+G_ISO_CLUSTER_MS2       = np.sqrt(8.0 * np.pi * G_EFF * P_ISO_CLUSTER_PA) # 5.7921e-10 m/s^2
+
+SIGMA_POCKET_GALAXY_KGM2     = G_3PDELTA_MS2 / (BURKERT_F_B_MAX * np.pi * G_EFF)
+SIGMA_POCKET_GALAXY_MSUN_PC2 = SIGMA_POCKET_GALAXY_KGM2 / MSUN_PC2_TO_KGM2   # 169.47 M_sun/pc^2 (Donato+ 2009)
+SIGMA_POCKET_CLUSTER_KGM2     = G_ISO_CLUSTER_MS2 / (BURKERT_F_B_MAX * np.pi * G_EFF)
+SIGMA_POCKET_CLUSTER_MSUN_PC2 = SIGMA_POCKET_CLUSTER_KGM2 / MSUN_PC2_TO_KGM2 # 2,599.82 M_sun/pc^2
+
+A_BTFR_POCKET           = ((BURKERT_V2_B_MAX ** 2) / (BURKERT_F_B_MAX * BURKERT_M_FAC_VMAX)) * ETA_POCKET * G_3PDELTA_MS2 # 8.9844e-11 m/s^2
+
 # Photometric Mass-to-Light & Absolute Solar Magnitudes
 M_B_SUN            = 5.44              # Solar absolute B-band magnitude (UNG 2013 / Cosmicflows)
 M_K_SUN            = 3.27              # Solar absolute K-band magnitude (2M++ Infrared)
@@ -777,3 +810,76 @@ def evaluate_two_condition_compilation_gate(
         "c2_phase_locked": c2_phase_locked,
         "theta_compiled": theta_compiled,
     }
+
+
+def compute_locked_pocket_r0_m(M_baryon_kg, sigma_pocket_kgm2=SIGMA_POCKET_GALAXY_KGM2):
+    """
+    Zero-parameter mass-locked Burkert Cover Pocket core radius r_0 [m]:
+        M_pocket(< x_vmax r_0) = ETA_POCKET * M_baryon = pi * sigma_p * r_0^2 * m_fac(x_vmax)
+    """
+    m_arr = np.maximum(np.asarray(M_baryon_kg, dtype=float), 0.0)
+    r0 = np.sqrt((ETA_POCKET * m_arr) / (np.pi * float(sigma_pocket_kgm2) * BURKERT_M_FAC_VMAX))
+    return float(r0) if np.ndim(M_baryon_kg) == 0 else r0
+
+
+def burkert_3d_accel(r_m, r0_m, sigma_pocket_kgm2=SIGMA_POCKET_GALAXY_KGM2):
+    """
+    Vectorized radial acceleration magnitude g_pocket(r) [m/s^2] for a cored Burkert
+    Cover Pocket with surface density sigma_pocket_kgm2 and core radius r0_m.
+    """
+    r_arr = np.maximum(np.asarray(r_m, dtype=float), 0.0)
+    if float(r0_m) <= 0.0:
+        out = np.zeros_like(r_arr, dtype=float)
+        return float(out) if np.ndim(r_m) == 0 else out
+
+    x = r_arr / float(r0_m)
+    small = x < 1.0e-4
+    x_safe = np.where(small | (x <= 0.0), 1.0, x)
+    taylor = (4.0 / 3.0) * x - (x * x) + (2.0 / 3.0) * (x ** 4)
+    m_b = np.log(1.0 + x_safe * x_safe) + 2.0 * np.log(1.0 + x_safe) - 2.0 * np.arctan(x_safe)
+    exact = m_b / (x_safe * x_safe)
+    f_b = np.where(x <= 0.0, 0.0, np.where(small, taylor, exact))
+    g_out = np.pi * G_EFF * float(sigma_pocket_kgm2) * f_b
+    return float(g_out) if np.ndim(r_m) == 0 else g_out
+
+
+def burkert_2d_proj_factor(X):
+    """
+    Vectorized exact analytic 2D projected surface density factor:
+        I(X) = Sigma_2D(X) / (rho_0 * r_0) = Sigma_2D(X) / SIGMA_POCKET
+    across dimensionless projected radius X = b / r_0.
+    """
+    x_arr = np.maximum(np.asarray(X, dtype=float), 0.0)
+    out = np.empty_like(x_arr, dtype=float)
+
+    m0 = x_arr < 1.0e-5
+    m1 = (~m0) & (x_arr < 1.0 - 1.0e-4)
+    m2 = (~m0) & (~m1) & (x_arr <= 1.0 + 1.0e-4)
+    m3 = x_arr > 1.0 + 1.0e-4
+
+    if np.any(m0):
+        out[m0] = np.pi / 2.0
+    if np.any(m1):
+        x = x_arr[m1]
+        s = np.sqrt(1.0 + x * x)
+        sq = np.sqrt(1.0 - x * x)
+        out[m1] = (
+            (np.pi / (2.0 * s))
+            + (np.log(s + 1.0) / s)
+            - (np.log(1.0 + sq) / sq)
+            - np.log(x) * (1.0 / s - 1.0 / sq)
+        )
+    if np.any(m2):
+        # Exact I(1) = pi/(2*sqrt(2)) + ln(sqrt(2)+1)/sqrt(2) - 1 with exact slope -2/3
+        i_at_1 = (np.pi / (2.0 * np.sqrt(2.0))) + (np.log(np.sqrt(2.0) + 1.0) / np.sqrt(2.0)) - 1.0
+        out[m2] = i_at_1 - (2.0 / 3.0) * (x_arr[m2] - 1.0)
+    if np.any(m3):
+        x = x_arr[m3]
+        s = np.sqrt(1.0 + x * x)
+        out[m3] = (
+            (np.pi / (2.0 * s))
+            + (np.arctanh(1.0 / s) / s)
+            - (np.arccos(1.0 / x) / np.sqrt(x * x - 1.0))
+        )
+
+    return float(out) if np.ndim(X) == 0 else out

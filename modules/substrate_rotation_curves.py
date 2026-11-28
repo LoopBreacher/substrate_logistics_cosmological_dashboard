@@ -12,13 +12,20 @@ from .data_loader import (
     KPC_TO_METER,
     A_OMEGA,
     DISK_TRUNCATION_RATIO,
+    ETA_POCKET,
+    G_3PDELTA_MS2,
+    SIGMA_POCKET_GALAXY_KGM2,
+    SIGMA_POCKET_GALAXY_MSUN_PC2,
+    A_BTFR_POCKET,
     compute_a_omega,
     get_compiled_node_density,
     get_hlocal,
-    format_baryonic_mass
+    format_baryonic_mass,
+    compute_locked_pocket_r0_m,
+    burkert_3d_accel,
 )
 
-# Preset Benchmark Spiral & Dwarf Galaxies
+# Preset Benchmark Spiral, Giant Spiral & Dwarf Galaxies
 ROTATION_PRESETS = {
     "NGC 3198 (Classic Spiral Benchmark)": {
         "M_baryon_solar": 3.2e10,      # 32 Billion M_sun (Disk + Gas)
@@ -35,7 +42,7 @@ ROTATION_PRESETS = {
         "r_max_kpc": 30.0,
         "r_focus_kpc": 8.12,
         "desc": "Milky Way rotation curve using full baryonic mass (Bulge + Bar + Disk + Gas Ring)."
-},
+    },
     "DDO 154 (Gas-Rich Dwarf Galaxy)": {
         "M_baryon_solar": 3.8e8,       # 380 Million M_sun
         "R_d_kpc": 1.20,               # Dwarf galaxy scale length
@@ -43,76 +50,135 @@ ROTATION_PRESETS = {
         "r_max_kpc": 10.0,
         "r_focus_kpc": 5.0,
         "desc": "Extreme gas-dominated dwarf galaxy where dark matter halo fits fail without extreme tuning."
-    }
+    },
+    "UGC 2885 (Giant Spiral Benchmark)": {
+        "M_baryon_solar": 3.5e11,      # 350 Billion M_sun
+        "R_d_kpc": 11.50,              # Rubin+ 1980 / Hunter+ 2013 giant LSB spiral scale length
+        "r_min_kpc": 0.0,
+        "r_max_kpc": 70.0,
+        "r_focus_kpc": 50.0,
+        "desc": "Massive giant spiral testing high-mass BTFR pocket lock out to 70 kpc."
+    },
 }
 
-def calculate_rotation_profile(
-    M_baryon_solar, r_kpc_array, a_omega_active=A_OMEGA, R_d_kpc=None, disk_geometry="Freeman Thin Disk"
-):
-    """
-    Computes Substrate rotation curves with geometric underflow coupling:
-    g_eff = sqrt(g_baryon^2 + g_baryon * a_Omega)
 
-    Supports:
-    - "Freeman Thin Disk" (default): Freeman (1970) exact 2D thin exponential disk Bessel profile.
-    - "Spherical Enclosed Mass": Enclosed mass ratio [1 - (1 + x)e^-x] / x^2 with central limit GM / (2 R_d^2).
-    """
+def _compute_baryon_accel_ms2(M_baryon_solar, r_kpc_array, R_d_kpc=None, disk_geometry="Freeman Thin Disk"):
+    """Computes pure linear K_Omega baryonic radial acceleration g_baryon(r) [m/s^2]."""
     N_total = (M_baryon_solar * M_SOLAR_KG) / M_PROTON
+    r_meters = np.asarray(r_kpc_array, dtype=float) * KPC_TO_METER
 
     if R_d_kpc is not None and R_d_kpc > 0:
-        x = r_kpc_array / R_d_kpc
-        R_d_m = R_d_kpc * KPC_TO_METER
+        x = np.asarray(r_kpc_array, dtype=float) / float(R_d_kpc)
+        R_d_m = float(R_d_kpc) * KPC_TO_METER
 
         if disk_geometry and str(disk_geometry).startswith("Freeman"):
-            # Freeman (1970) exact thin exponential disk radial acceleration:
-            # g(r) = (N * K_Omega / R_d^2) * 0.5 * x * [I0(y)K0(y) - I1(y)K1(y)], y = x / 2
             y = 0.5 * x
             y_safe = np.clip(y, 1e-6, 300.0)
             bessel_fac = 0.5 * x * (i0(y_safe) * k0(y_safe) - i1(y_safe) * k1(y_safe))
             asym_fac = np.where(x > 0.0, 1.0 / (np.maximum(x, 1e-12) ** 2), 0.0)
             ratio = np.where(x < 1e-4, 0.0, np.where(y > 300.0, asym_fac, bessel_fac))
         else:
-            # Spherical enclosed mass ratio = [1 - (1 + x) e^-x] / x^2
-            # Taylor expansion around x=0: 1/2 - x/3 + x^2/8 - ...
             with np.errstate(divide='ignore', invalid='ignore'):
-                ratio = (1.0 - (1.0 + x) * np.exp(-x)) / (x**2)
-            ratio = np.where(x < 1e-5, 0.5 - x/3.0 + x**2/8.0, ratio)
+                ratio = (1.0 - (1.0 + x) * np.exp(-x)) / (x ** 2)
+            ratio = np.where(x < 1e-5, 0.5 - x / 3.0 + (x ** 2) / 8.0, ratio)
 
-        g_baryon_ms2 = (N_total * K_OMEGA / R_d_m**2) * ratio
-    else:
-        r_meters = r_kpc_array * KPC_TO_METER
-        safe_r_meters = np.maximum(r_meters, 1e-10)
-        g_baryon_ms2 = (N_total * K_OMEGA) / (safe_r_meters**2)
+        return (N_total * K_OMEGA / (R_d_m ** 2)) * ratio
 
-    # 1. Classical Keplerian Orbital Velocity: v_kepler = sqrt(r * g_baryon)
-    r_meters = r_kpc_array * KPC_TO_METER
-    v_kepler_ms = np.sqrt(r_meters * g_baryon_ms2)
-    v_kepler_kms = v_kepler_ms / 1000.0
+    safe_r_meters = np.maximum(r_meters, 1e-10)
+    return (N_total * K_OMEGA) / (safe_r_meters ** 2)
 
-    # 2. Geometric Underflow Coupling: g_eff = sqrt(g_baryon^2 + g_baryon * a_Omega)
-    g_eff_ms2 = np.sqrt(g_baryon_ms2**2 + g_baryon_ms2 * a_omega_active)
 
-    # 3. Substrate Clamped Orbital Velocity: v_substrate = sqrt(r * g_eff) [m/s]
-    v_substrate_ms = np.sqrt(r_meters * g_eff_ms2)
-    v_substrate_kms = v_substrate_ms / 1000.0
+def calculate_rotation_profile(
+    M_baryon_solar,
+    r_kpc_array,
+    a_omega_active=A_OMEGA,
+    R_d_kpc=None,
+    disk_geometry="Freeman Thin Disk",
+    gravity_model="Legacy Underflow (a_Ω)",
+):
+    """
+    Computes Substrate rotation curves, preserving the 6-tuple signature:
+        (v_primary_kms, v_kepler_kms, g_baryon_ms2, g_primary_ms2, transition_radius_kpc, v_flat_kms)
+    Supports both Legacy Kinematic Underflow (a_Omega) and Topological Cover Pocket
+    (Linear K_Omega + 3 P_delta Burkert).
+    """
+    r_arr = np.asarray(r_kpc_array, dtype=float)
+    r_meters = r_arr * KPC_TO_METER
+    M_baryon_kg = float(M_baryon_solar) * M_SOLAR_KG
+    N_total = M_baryon_kg / M_PROTON
 
-    # Force exact 0.0 at r = 0 coordinate origin
-    v_kepler_kms = np.where(r_kpc_array <= 0, 0.0, v_kepler_kms)
-    v_substrate_kms = np.where(r_kpc_array <= 0, 0.0, v_substrate_kms)
+    g_baryon_ms2 = _compute_baryon_accel_ms2(M_baryon_solar, r_arr, R_d_kpc=R_d_kpc, disk_geometry=disk_geometry)
+    v_kepler_kms = np.where(r_arr <= 0.0, 0.0, np.sqrt(np.maximum(r_meters * g_baryon_ms2, 0.0)) / 1000.0)
 
-    # 4. Theoretical Asymptotic Flat Floor: v_flat = (N_total * K_Omega * a_Omega)^(1/4)
-    v_flat_ms = (N_total * K_OMEGA * a_omega_active)**(0.25)
-    v_flat_kms = float(v_flat_ms / 1000.0)
+    if gravity_model and "Cover Pocket" in str(gravity_model):
+        r0_m = compute_locked_pocket_r0_m(M_baryon_kg, SIGMA_POCKET_GALAXY_KGM2)
+        g_pocket_ms2 = burkert_3d_accel(r_meters, r0_m, SIGMA_POCKET_GALAXY_KGM2)
+        g_primary_ms2 = g_baryon_ms2 + g_pocket_ms2
+        v_primary_kms = np.where(r_arr <= 0.0, 0.0, np.sqrt(np.maximum(r_meters * g_primary_ms2, 0.0)) / 1000.0)
+        v_flat_kms = float(((N_total * K_OMEGA * A_BTFR_POCKET) ** 0.25) / 1000.0)
+        r0_kpc = r0_m / KPC_TO_METER
+        return v_primary_kms, v_kepler_kms, g_baryon_ms2, g_primary_ms2, r0_kpc, v_flat_kms
 
-    # 5. Outer Transition Radius R*: Radius beyond g_eff peak where g_eff crosses a_Omega
+    # Legacy Kinematic Underflow (a_Omega)
+    g_eff_ms2 = np.sqrt((g_baryon_ms2 ** 2) + g_baryon_ms2 * a_omega_active)
+    v_substrate_kms = np.where(r_arr <= 0.0, 0.0, np.sqrt(np.maximum(r_meters * g_eff_ms2, 0.0)) / 1000.0)
+    v_flat_kms = float(((N_total * K_OMEGA * a_omega_active) ** 0.25) / 1000.0)
+
     if np.max(g_eff_ms2) < a_omega_active:
         transition_radius_kpc = None
     else:
         idx_peak = int(np.argmax(g_eff_ms2))
         idx_star = idx_peak + int(np.argmin(np.abs(g_eff_ms2[idx_peak:] - a_omega_active)))
-        transition_radius_kpc = float(r_kpc_array[idx_star])
+        transition_radius_kpc = float(r_arr[idx_star])
 
     return v_substrate_kms, v_kepler_kms, g_baryon_ms2, g_eff_ms2, transition_radius_kpc, v_flat_kms
+
+
+def calculate_cover_pocket_rotation_profile(
+    M_baryon_solar, r_kpc_array, a_omega_active=A_OMEGA, R_d_kpc=None, disk_geometry="Freeman Thin Disk"
+):
+    """
+    Evaluates BOTH Topological Cover Pocket (Linear K_Omega + 3 P_delta Burkert)
+    and Legacy Kinematic Underflow (a_Omega) profiles simultaneously for comparative overlay.
+    """
+    r_arr = np.asarray(r_kpc_array, dtype=float)
+    r_meters = r_arr * KPC_TO_METER
+    M_baryon_kg = float(M_baryon_solar) * M_SOLAR_KG
+    N_total = M_baryon_kg / M_PROTON
+
+    v_legacy_kms, v_kepler_kms, g_baryon_ms2, g_legacy_eff_ms2, R_star_kpc, v_flat_legacy_kms = calculate_rotation_profile(
+        M_baryon_solar=M_baryon_solar,
+        r_kpc_array=r_arr,
+        a_omega_active=a_omega_active,
+        R_d_kpc=R_d_kpc,
+        disk_geometry=disk_geometry,
+        gravity_model="Legacy Underflow (a_Ω)",
+    )
+
+    r0_m = compute_locked_pocket_r0_m(M_baryon_kg, SIGMA_POCKET_GALAXY_KGM2)
+    r0_kpc = float(r0_m / KPC_TO_METER)
+    g_pocket_ms2 = burkert_3d_accel(r_meters, r0_m, SIGMA_POCKET_GALAXY_KGM2)
+    g_pocket_tot_ms2 = g_baryon_ms2 + g_pocket_ms2
+
+    v_pocket_only_kms = np.where(r_arr <= 0.0, 0.0, np.sqrt(np.maximum(r_meters * g_pocket_ms2, 0.0)) / 1000.0)
+    v_pocket_kms = np.where(r_arr <= 0.0, 0.0, np.sqrt(np.maximum(r_meters * g_pocket_tot_ms2, 0.0)) / 1000.0)
+    v_btfr_pocket_kms = float(((N_total * K_OMEGA * A_BTFR_POCKET) ** 0.25) / 1000.0)
+
+    return {
+        "v_pocket_kms": v_pocket_kms,
+        "v_pocket_only_kms": v_pocket_only_kms,
+        "v_legacy_aOmega_kms": v_legacy_kms,
+        "v_kepler_kms": v_kepler_kms,
+        "g_baryon_ms2": g_baryon_ms2,
+        "g_pocket_ms2": g_pocket_ms2,
+        "g_pocket_tot_ms2": g_pocket_tot_ms2,
+        "g_legacy_eff_ms2": g_legacy_eff_ms2,
+        "r0_kpc": r0_kpc,
+        "R_star_kpc": R_star_kpc,
+        "v_flat_legacy_kms": v_flat_legacy_kms,
+        "v_btfr_pocket_kms": v_btfr_pocket_kms,
+    }
+
 
 def run_rotation_curve_analysis(
     galaxy_target_name="NGC 3198 (Classic Spiral Benchmark)",
@@ -125,16 +191,19 @@ def run_rotation_curve_analysis(
     tree=None,
     gal_positions=None,
     nodes_per_galaxy=None,
-    disk_geometry="Freeman Thin Disk"
+    disk_geometry="Freeman Thin Disk",
+    gravity_model="Cover Pocket (Linear K_Ω + 3 P_δ Burkert)",
 ):
     """
     Main Streamlit UI Execution Engine for Galactic Rotation Curves.
+    Supports both Topological Cover Pocket (Linear K_Omega + 3 P_delta Burkert) and
+    Legacy Kinematic Underflow (a_Omega), overlaying the inactive model for direct comparison.
     """
     if use_catalog_query and target_pos_mpc is not None and tree is not None:
-        rho_N_local = get_compiled_node_density(tree, gal_positions, nodes_per_galaxy, target_pos_mpc, sigma_mpc=sigma_mpc)
+        _ = get_compiled_node_density(tree, gal_positions, nodes_per_galaxy, target_pos_mpc, sigma_mpc=sigma_mpc)
         h_local = get_hlocal(tree, gal_positions, nodes_per_galaxy, target_pos_mpc, sigma_mpc=sigma_mpc, h_global=h_global)
         a_omega_used = compute_a_omega(h_local)
-        
+
         M_baryon = custom_M_baryon if custom_M_baryon else 5.0e10
         R_d_val = custom_R_d if custom_R_d else 2.5
         r_min, r_max, r_focus = 0.0, 30.0, 10.0
@@ -153,79 +222,156 @@ def run_rotation_curve_analysis(
             r_min, r_max, r_focus = 0.0, 30.0, 10.0
 
         a_omega_used = compute_a_omega(h_global)
-        h_local = h_global
-        rho_N_local = 0.0
         target_title = galaxy_target_name
 
     r_array = np.linspace(r_min, r_max, 500)
-    
-    v_sub, v_kep, g_bar, g_eff, R_star_kpc, v_flat_kms = calculate_rotation_profile(
+    is_cover_pocket = bool(gravity_model and "Cover Pocket" in str(gravity_model))
+
+    prof = calculate_cover_pocket_rotation_profile(
         M_baryon_solar=M_baryon,
         r_kpc_array=r_array,
         a_omega_active=a_omega_used,
         R_d_kpc=R_d_val,
-        disk_geometry=disk_geometry
+        disk_geometry=disk_geometry,
     )
+
+    v_pocket = prof["v_pocket_kms"]
+    v_pocket_only = prof["v_pocket_only_kms"]
+    v_legacy = prof["v_legacy_aOmega_kms"]
+    v_kep = prof["v_kepler_kms"]
+    g_bar = prof["g_baryon_ms2"]
+    g_pocket = prof["g_pocket_ms2"]
+    g_pocket_tot = prof["g_pocket_tot_ms2"]
+    g_legacy_eff = prof["g_legacy_eff_ms2"]
+    r0_kpc = prof["r0_kpc"]
+    R_star_kpc = prof["R_star_kpc"]
+    v_flat_legacy = prof["v_flat_legacy_kms"]
     r_trunc_kpc = DISK_TRUNCATION_RATIO * R_d_val if (R_d_val is not None and R_d_val > 0) else None
-    
+
+    v_primary = v_pocket if is_cover_pocket else v_legacy
+    v_alt = v_legacy if is_cover_pocket else v_pocket
+    g_primary = g_pocket_tot if is_cover_pocket else g_legacy_eff
+    g_alt = g_legacy_eff if is_cover_pocket else g_pocket_tot
+
+    lbl_primary = (
+        rf"Cover Pocket Total (Linear $\mathcal{{K}}_\Omega$ + $3P_\delta$, {disk_geometry})"
+        if is_cover_pocket
+        else rf"Legacy Underflow ($a_\Omega$ Floor, {disk_geometry})"
+    )
+    lbl_alt = (
+        rf"Legacy Underflow Overlay ($a_\Omega$, $v_{{\mathrm{{flat}}}}={v_flat_legacy:.1f}$ km/s)"
+        if is_cover_pocket
+        else rf"Cover Pocket Overlay ($3P_\delta$ Burkert, $r_0={r0_kpc:.2f}$ kpc)"
+    )
+
     # Render Diagnostic Plots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5), facecolor='#0b1120')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14.5, 5.6), facecolor='#0b1120')
     for ax in (ax1, ax2):
         ax.set_facecolor('#070c18')
         ax.tick_params(colors='#94a3b8')
         ax.grid(True, alpha=0.2, linestyle=':')
 
     # Panel 1: Rotation Curve v(r)
-    ax1.plot(r_array, v_sub, color='#10b981', linewidth=2.5, label=rf'Substrate Floor ({disk_geometry})')
-    ax1.plot(r_array, v_kep, color='#ef4444', linewidth=1.8, linestyle='--', label=r'Keplerian Baryonic Decay $v \propto 1/\sqrt{r}$')
-    ax1.axhline(v_flat_kms, color='#f59e0b', linestyle=':', label=f'Asymptotic Flat Floor ({v_flat_kms:.1f} km/s)')
-    if R_star_kpc is not None:
-        ax1.axvline(R_star_kpc, color='#38bdf8', linestyle='-.', label=f'Transition Radius R* ({R_star_kpc:.1f} kpc)')
+    ax1.plot(r_array, v_primary, color='#ef4444', linewidth=2.6, label=lbl_primary, zorder=5)
+    ax1.plot(r_array, v_alt, color='#a855f7', linewidth=1.8, linestyle='--', label=lbl_alt, zorder=4)
+    if is_cover_pocket:
+        ax1.plot(r_array, v_pocket_only, color='#10b981', linewidth=1.6, linestyle='-.',
+                 label=rf'Cover Pocket Alone ($\Sigma_p={SIGMA_POCKET_GALAXY_MSUN_PC2:.1f}\,M_\odot/\mathrm{{pc}}^2$)')
+    ax1.plot(r_array, v_kep, color='#38bdf8', linewidth=1.6, linestyle=':', label=r'Baryonic Keplerian ($v \propto 1/\sqrt{r}$)')
+
+    if r0_kpc <= r_max:
+        ax1.axvline(r0_kpc, color='#22d3ee', linestyle='-.', linewidth=1.5, label=rf'Locked Pocket Core $r_0$ ({r0_kpc:.2f} kpc)')
+    if not is_cover_pocket and R_star_kpc is not None:
+        ax1.axvline(R_star_kpc, color='#10b981', linestyle='-.', linewidth=1.4, label=f'Transition Radius R* ({R_star_kpc:.1f} kpc)')
     if r_trunc_kpc is not None and r_trunc_kpc <= r_max:
-        ax1.axvline(r_trunc_kpc, color='#fbbf24', linestyle='--', linewidth=1.6, label=rf'2D Disk Truncation Cliff ({r_trunc_kpc:.1f} kpc)')
-    
+        ax1.axvline(r_trunc_kpc, color='#fbbf24', linestyle='--', linewidth=1.5, label=rf'2D Disk Truncation Cliff ({r_trunc_kpc:.1f} kpc)')
+
     ax1.set_xlabel('Galactocentric Radius $r$ [kpc]', color='#cbd5e1', fontsize=11)
     ax1.set_ylabel('Orbital Rotation Velocity $v$ [km/s]', color='#cbd5e1', fontsize=11)
-    ax1.set_title(f'{target_title}\nGalactic Rotation Curve (Zero Dark Matter)', color='#f8fafc', fontsize=11)
-    ax1.legend(loc='lower right', facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0')
+    mode_tag = "Cover Pocket Architecture" if is_cover_pocket else "Legacy Underflow Architecture"
+    ax1.set_title(f'{target_title}\nGalactic Rotation Curve — {mode_tag}', color='#f8fafc', fontsize=11)
+    ax1.legend(loc='lower right', fontsize=8.0, facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0')
 
-    # Panel 2: Acceleration Profile g(r) vs a_Omega Underflow Floor
-    ax2.plot(r_array, g_eff, color='#10b981', linewidth=2.5, label=r'Substrate Effective Acceleration $g_{\mathrm{eff}}(r)$')
-    ax2.plot(r_array, g_bar, color='#ef4444', linewidth=1.8, linestyle='--', label=r'Baryonic Acceleration $g_{\mathrm{baryon}}(r)$')
-    ax2.axhline(a_omega_used, color='#a855f7', linestyle='--', linewidth=2.0, label=f'Kinematic Underflow Floor $a_\\Omega$ ({a_omega_used:.3e} m/s²)')
-    
-    if R_star_kpc is not None:
-        lbl_R_star = r'R* Boundary ($g_{\mathrm{eff}} = a_\Omega$)'
-        ax2.axvline(R_star_kpc, color='#38bdf8', linestyle='-.', label=lbl_R_star)
+    # Panel 2: Radial Acceleration Profile & 3 P_delta / a_BTFR / a_Omega Floors
+    pos_mask = r_array > 0.0
+    r_p = r_array[pos_mask]
+    ax2.plot(
+        r_p,
+        np.where(g_primary[pos_mask] > 0.0, g_primary[pos_mask], np.nan),
+        color='#ef4444',
+        linewidth=2.5,
+        label=r'Primary Total Acceleration $g_{\mathrm{tot}}(r)$',
+    )
+    ax2.plot(
+        r_p,
+        np.where(g_alt[pos_mask] > 0.0, g_alt[pos_mask], np.nan),
+        color='#a855f7',
+        linewidth=1.8,
+        linestyle='--',
+        label=r'Alternative Model Acceleration $g_{\mathrm{alt}}(r)$',
+    )
+    ax2.plot(
+        r_p,
+        np.where(g_bar[pos_mask] > 0.0, g_bar[pos_mask], np.nan),
+        color='#38bdf8',
+        linewidth=1.6,
+        linestyle=':',
+        label=r'Baryonic Acceleration $g_{\mathrm{baryon}}(r)$',
+    )
+    ax2.axhline(G_3PDELTA_MS2, color='#10b981', linestyle='-', linewidth=1.6,
+                label=rf'Peak Burkert Ceiling $g_{{3P_\delta}}$ ({G_3PDELTA_MS2:.3e} m/s²)')
+    ax2.axhline(A_BTFR_POCKET, color='#f59e0b', linestyle='-.', linewidth=1.6,
+                label=rf'Emergent BTFR Scale $a_{{\mathrm{{BTFR}}}}$ ({A_BTFR_POCKET:.3e} m/s²)')
+    ax2.axhline(a_omega_used, color='#94a3b8', linestyle='--', linewidth=1.3,
+                label=rf'Legacy Floor $a_\Omega$ ({a_omega_used:.3e} m/s²)')
+
+    if r0_kpc <= r_max:
+        ax2.axvline(r0_kpc, color='#22d3ee', linestyle='-.', linewidth=1.4, label=rf'Locked Core $r_0$ ({r0_kpc:.2f} kpc)')
+    elif not is_cover_pocket and R_star_kpc is not None:
+        ax2.axvline(R_star_kpc, color='#10b981', linestyle='-.', linewidth=1.4, label=r'R* Boundary ($g_{\mathrm{eff}} = a_\Omega$)')
 
     ax2.set_yscale('log')
     ax2.set_xlabel('Galactocentric Radius $r$ [kpc]', color='#cbd5e1', fontsize=11)
-    ax2.set_ylabel(r'Acceleration $g$ [m/s²]', color='#cbd5e1', fontsize=11)
-    ax2.set_title(r'Kinematic Underflow Threshold: $g_{\mathrm{eff}}$ vs $g_{\mathrm{baryon}}$', color='#f8fafc', fontsize=11)
-    ax2.legend(loc='upper right', facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0')
+    ax2.set_ylabel(r'Radial Acceleration $g$ [m/s²]', color='#cbd5e1', fontsize=11)
+    ax2.set_title(r'Radial Acceleration: $3P_\delta$ Burkert vs. $a_\Omega$ Thresholds', color='#f8fafc', fontsize=11)
+    ax2.legend(loc='upper right', fontsize=7.8, facecolor='#0f172a', edgecolor='none', labelcolor='#e2e8f0')
 
     plt.tight_layout()
 
-    # Export DataFrame with full double-precision floating point numbers
     df_rotation = pd.DataFrame({
-        "radius_kpc": np.round(r_array, 2),
-        "v_substrate_kms": np.round(v_sub, 2),
-        "v_kepler_kms": np.round(v_kep, 2),
-        "g_eff_ms2": g_eff,
+        "radius_kpc": np.round(r_array, 3),
+        "v_pocket_kms": np.round(v_pocket, 3),
+        "v_pocket_only_kms": np.round(v_pocket_only, 3),
+        "v_legacy_aOmega_kms": np.round(v_legacy, 3),
+        "v_kepler_kms": np.round(v_kep, 3),
+        "v_substrate_kms": np.round(v_primary, 3),
+        "g_pocket_tot_ms2": g_pocket_tot,
+        "g_legacy_eff_ms2": g_legacy_eff,
         "g_baryon_ms2": g_bar,
-        "a_omega_floor_ms2": a_omega_used
+        "g_pocket_ms2": g_pocket,
+        "a_omega_floor_ms2": a_omega_used,
     })
 
-    idx_focus = np.argmin(np.abs(r_array - r_focus))
+    idx_focus = int(np.argmin(np.abs(r_array - r_focus)))
 
-    metrics = {
-        "True Baryonic Mass": format_baryonic_mass(M_baryon),
-        "Disk Scale Length (R_d)": f"{R_d_val:.2f} kpc",
-        "Kinematic Underflow Floor (a_Ω)": f"{a_omega_used:.3e} m/s²",
-        "Transition Radius (R*)": f"{R_star_kpc:.2f} kpc" if R_star_kpc is not None else "Deep Underflow (< a_Ω)",
-        "Flat Asymptotic Velocity": f"{v_flat_kms:.1f} km/s",
-        "Velocity @ Focus (r_focus)": f"{v_sub[idx_focus]:.1f} km/s (@ {r_focus:.1f} kpc)",
-        "Disk Truncation (3.829 R_d)": f"{r_trunc_kpc:.2f} kpc" if r_trunc_kpc is not None else "N/A"
-    }
+    if is_cover_pocket:
+        metrics = {
+            "True Baryonic Mass": format_baryonic_mass(M_baryon),
+            "Locked Pocket Core (r_0)": f"{r0_kpc:.2f} kpc",
+            "Pocket Surface Density (Σ_p)": f"{SIGMA_POCKET_GALAXY_MSUN_PC2:.2f} M☉/pc²",
+            "Emergent a_BTFR": f"{A_BTFR_POCKET:.3e} m/s²",
+            "Velocity @ Focus (r_focus)": f"{v_primary[idx_focus]:.1f} km/s (@ {r_focus:.1f} kpc)",
+            "Disk Truncation (3.829 R_d)": f"{r_trunc_kpc:.2f} kpc" if r_trunc_kpc is not None else "N/A",
+        }
+    else:
+        metrics = {
+            "True Baryonic Mass": format_baryonic_mass(M_baryon),
+            "Disk Scale Length (R_d)": f"{R_d_val:.2f} kpc",
+            "Kinematic Underflow Floor (a_Ω)": f"{a_omega_used:.3e} m/s²",
+            "Transition Radius (R*)": f"{R_star_kpc:.2f} kpc" if R_star_kpc is not None else "Deep Underflow (< a_Ω)",
+            "Flat Asymptotic Velocity": f"{v_flat_legacy:.1f} km/s",
+            "Velocity @ Focus (r_focus)": f"{v_primary[idx_focus]:.1f} km/s (@ {r_focus:.1f} kpc)",
+            "Disk Truncation (3.829 R_d)": f"{r_trunc_kpc:.2f} kpc" if r_trunc_kpc is not None else "N/A",
+        }
 
     return fig, df_rotation, metrics

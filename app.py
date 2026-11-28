@@ -19,6 +19,11 @@ from modules.data_loader import (
     M_PROTON,
     R_BAO_MPC,
     M_SOLAR_KG,
+    ETA_POCKET,
+    SIGMA_POCKET_GALAXY_MSUN_PC2,
+    SIGMA_POCKET_CLUSTER_MSUN_PC2,
+    A_BTFR_POCKET,
+    N_POCKET_CLUSTER_BRIDGE,
     get_hlocal,
     compute_a_omega,
     format_baryonic_mass,
@@ -293,6 +298,8 @@ st.sidebar.markdown(f"""
 - **Mass / Node ($m_p$)**: `{M_PROTON:.5e}` kg
 - **Drag Pressure ($P_\\delta$)**: `{P_DELTA_MACRO_PA:.4e}` Pa
 - **Matter Partition ($S_8$)**: Void `{S8_VOID:.4f}` | Global `{S8_GLOBAL:.4f}`
+- **Cover Pocket ($\\eta / \\Sigma_p$)**: $\\eta={ETA_POCKET:.3f}$ | Gal `{SIGMA_POCKET_GALAXY_MSUN_PC2:.1f}` | Clu `{SIGMA_POCKET_CLUSTER_MSUN_PC2:,.0f}` $M_\\odot/\\mathrm{{pc}}^2$
+- **BTFR & Bridge**: $a_{{\\text{{BTFR}}}}={A_BTFR_POCKET:.3e}$ $\\text{{m/s}}^2$ | $1/(9\\mathcal{{C}}_\\delta)={N_POCKET_CLUSTER_BRIDGE:.1f}$
 - **Disk Truncation Cliff**: `{DISK_TRUNCATION_RATIO:.4f}` $R_d$
 - **BAO Natural Ruler ($r_s$)**: `{R_BAO_MPC:.4f}` Mpc
 """)
@@ -682,7 +689,7 @@ with domain_1:
 with domain_2:
     sub_2 = st.radio(
         "Select Module:",
-        ["🌊 Bulk Flow Field", "🧱 Void Boundary Dynamics", "📐 Redshift Space Distortions (Kaiser & FoG)", "🌀 Galactic Rotation Curves & Kinematic Underflow", "🧊 Interactive 3D Cosmic Web Density Viewer", "⚡ 3D Dynamic Dark Energy Field ($w_0, w_a$)"],
+        ["🌊 Bulk Flow Field", "🧱 Void Boundary Dynamics", "📐 Redshift Space Distortions (Kaiser & FoG)", "🌀 Galactic Rotation Curves & Topological Cover Pockets", "🧊 Interactive 3D Cosmic Web Density Viewer", "⚡ 3D Dynamic Dark Energy Field ($w_0, w_a$)"],
         horizontal=True
     )
     st.divider()
@@ -853,45 +860,48 @@ with domain_2:
 
     # 12. GALACTIC ROTATION CURVES
     elif "Galactic Rotation" in sub_2:
-        st.header("Galactic Rotation Curves & Kinematic Underflow Floor")
+        st.header("Galactic Rotation Curves & Topological Cover Pockets")
         st.info(
-            r"🌀 **Physical Principle:** In Substrate Logistics, flat galactic rotation curves require zero Cold Dark Matter halos and zero empirical $G$. "
-            r"Evaluating **Freeman (1970) thin exponential disk** or **Spherical Enclosed Mass** baryonic potentials directly from proton nodes ($N_{\text{total}} = M_B / m_p$, $\mathcal{K}_\Omega$), "
-            r"the grid encounters Kinematic Underflow below $a_\Omega = \frac{c H_{\text{local}}}{2\pi}$, clamping outer orbital speeds to "
-            r"$v_{\text{flat}} = \sqrt[4]{N_{\text{total}} \mathcal{K}_\Omega a_\Omega}$ alongside the 2D disk truncation cliff at $R_{\text{trunc}} = \frac{1}{2}\ln(1/\mathcal{C}_\delta)\,R_d \approx 3.8291\,R_d$."
+            r"🌀 **Physical Principle:** In Substrate Logistics, flat galactic rotation curves require zero Cold Dark Matter particles and zero empirical $G$. "
+            r"**Recommended Architecture (Topological Cover Pocket):** Pure linear $\mathcal{K}_\Omega$ baryons (**Freeman thin disk** or **Spherical**) embedded in a momentum-conserving cored Burkert Cover Pocket locked to the 3D drag floor $3P_\delta$ "
+            r"($\Sigma_p = 169.47\,M_\odot/\mathrm{pc}^2$, $\eta_{\mathrm{pocket}} = 4.566$), naturally recovering $a_{\mathrm{BTFR}} = 8.984 \times 10^{-11}\ \mathrm{m/s}^2$. "
+            r"Toggle to compare directly against **Legacy Kinematic Underflow ($a_\Omega$)** alongside the 2D disk truncation cliff at $R_{\text{trunc}} = \frac{1}{2}\ln(1/\mathcal{C}_\delta)\,R_d \approx 3.8291\,R_d$."
         )
         
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
             st.markdown(r"""
             ### What This Module Demonstrates
-            * **Zero Dark Matter Halos:** Replaces dark matter halo fitting with a single hardware limit—the Kinematic Underflow Floor ($a_\Omega$).
-            * **Flat Outer Rotation Curves:** Demonstrates how outer orbital speeds lock onto a constant plateau $v_{\text{flat}} = \sqrt[4]{N_{\text{total}} \mathcal{K}_\Omega a_\Omega}$ as baryonic acceleration decays.
+            * **Two-Mode Comparison (Cover Pocket vs. Legacy $a_\Omega$):** Runs **Topological Cover Pocket (Linear $\mathcal{K}_\Omega$ + $3P_\delta$ Burkert)** (default) with an automatic dashed overlay of **Legacy Kinematic Underflow ($a_\Omega$)** so you can compare Burkert core roll-off vs. flat asymptotic velocity directly.
+            * **Zero-Parameter Burkert Cover Pockets:** Locks pocket surface density to $g_{3P_\delta} = \sqrt{8\pi G_{\mathrm{eff}}(3P_\delta)} = 3.776 \times 10^{-11}\ \mathrm{m/s}^2 \implies \Sigma_p = 169.47\,M_\odot/\mathrm{pc}^2$ and locks core radius $r_0$ to $\eta_{\mathrm{pocket}} = \Omega_{m,\mathrm{void}}/\Delta\Omega_m = 4.566$.
             * **Freeman Thin Disk & 2D Truncation Law:** Compares Freeman (1970) exact 2D exponential disk Bessel kinematics against Spherical Enclosed Mass, marking the topological drag disk cutoff $R_{\text{trunc}} = 3.8291\,R_d$.
-            * **Baryonic Tully-Fisher Relation & Deep Underflow:** Proves $v_{\text{flat}} \propto M_B^{1/4}$ algebraically and identifies deep-underflow dwarfs (e.g., DDO 154, $\max g_{\text{eff}} < a_\Omega$).
-            * **Live 3D Density Coupling:** Shows how local cosmic environment ($H_{\text{local}}$) dynamically alters the underflow threshold $a_\Omega(\mathbf{x}) = \frac{c H_{\text{local}}(\mathbf{x})}{2\pi}$.
+            * **Live 3D Density Coupling:** In Catalog Query mode, samples local cosmic environment ($H_{\text{local}}$) to dynamically adjust $a_\Omega(\mathbf{x}) = \frac{c H_{\text{local}}(\mathbf{x})}{2\pi}$.
 
             ---
             ### 🔬 Key Physical Mechanics
-            * **Kinematic Underflow Coupling:** When baryonic acceleration $g_{\text{baryon}}$ drops below $a_\Omega$, total effective acceleration scales geometrically:
+            * **Topological Cover Pocket Force (Linear $\mathcal{K}_\Omega$):**
+              $$g_{\mathrm{tot}}(r) = g_{\mathrm{baryon}}(r) + \pi G_{\mathrm{eff}} \Sigma_p \frac{\ln(1+x^2)+2\ln(1+x)-2\arctan x}{x^2}, \quad x = \frac{r}{r_0}$$
+            * **Kinematic Underflow Coupling ($a_\Omega$):**
               $$g_{\text{eff}}(r) = \sqrt{g_{\text{baryon}}(r)^2 + g_{\text{baryon}}(r) \cdot a_\Omega}$$
             * **Freeman (1970) Thin Exponential Disk Potential:** Evaluates radial disk acceleration using modified Bessel functions ($y = r / (2 R_d)$) via closed-form proton node constant $\mathcal{K}_\Omega$:
               $$g_{\text{baryon}}(r) = \frac{N_{\text{total}} \mathcal{K}_\Omega}{R_d^2} \frac{r}{2 R_d} \left[ I_0(y)K_0(y) - I_1(y)K_1(y) \right]$$
-            * **2D Disk Truncation Cliff & Transition Radius ($R^*$):** Marks both the topological drag disk cutoff ($R_{\text{trunc}} = \frac{1}{2}\ln(1/\mathcal{C}_\delta)\,R_d = 3.8291\,R_d$) and the outer crossing where $g_{\text{eff}}(R^*) = a_\Omega$ (or reports `Deep Underflow (< a_Ω)` when $\max g_{\text{eff}} < a_\Omega$).
+            * **2D Disk Truncation Cliff & Transition Radius ($R^*$):** Marks the topological drag disk cutoff ($R_{\text{trunc}} = 3.8291\,R_d$), locked pocket core $r_0$, and outer $a_\Omega$ crossing $R^*$.
 
             ---
             ### ⚙️ Interactive Controls & Parameter Reference
-            * **Rotation Curve Mode:**
-              * *Benchmark Galaxy Presets:* Load standard targets (NGC 3198, Milky Way, DDO 154) to inspect classic rotation curves.
-              * *Live Catalog Query:* Select any real galaxy from the active 3D survey catalog to extract its exact spatial position and evaluate $a_\Omega$ from local 3D node density.
+            * **Gravity Architecture:** Toggle between **Topological Cover Pocket (Linear $\mathcal{K}_\Omega$ + $3P_\delta$)** (recommended, exact momentum conservation) and **Legacy Kinematic Underflow ($a_\Omega$ Floor)**.
+            * **Rotation Curve Mode:** Benchmark Galaxy Presets (`NGC 3198`, `Milky Way`, `DDO 154`, `UGC 2885`) or Live Catalog Query.
             * **Disk Gravity Geometry:** Switch between **Freeman Thin Disk (Exact)** (default) and **Spherical Enclosed Mass**.
-            * **Baryonic Mass ($M_B$):** Total visible baryonic mass (stars + gas) in solar masses ($M_\odot$).
-            * **Kernel Scale ($\sigma$ in Sidebar):** Gaussian smoothing window used for 3D density evaluation during catalog queries.
-
-            ---
-            ### 📡 Survey Catalog Response & Performance Guidelines
-            * **Local Volume (UNG 2013):** Samples nearby galaxies within $35\text{ Mpc}$, isolating local group density fluctuations.
-            * **Extended Catalogs (Cosmicflows-4 / 2M++):** Evaluates galaxies in deep cosmic web environments out to $200\text{ Mpc}$, showing how cluster environments boost $a_\Omega$.
             """)
+
+        gravity_model_rot = st.radio(
+            "Gravity Architecture:",
+            [
+                "Topological Cover Pocket (Linear K_Ω + 3 P_δ)",
+                "Legacy Kinematic Underflow (a_Ω Floor)",
+            ],
+            horizontal=True,
+            key="rot_gravity_arch",
+        )
 
         col_rot_mode, col_rot_geom = st.columns([1.4, 1.0])
         mode_rot = col_rot_mode.radio(
@@ -988,7 +998,8 @@ with domain_2:
                     tree=tree,
                     gal_positions=gal_positions,
                     nodes_per_galaxy=nodes_per_galaxy,
-                    disk_geometry=disk_geom_rot
+                    disk_geometry=disk_geom_rot,
+                    gravity_model=gravity_model_rot,
                 )
                 st.session_state[m_key] = (fig_rot, df_rot, rot_metrics)
 
@@ -1365,43 +1376,42 @@ with domain_3:
             
     # 11. Gravitational Lensing
     elif "Gravitational Lensing" in sub_3:
-        st.header("Zero-Dark-Matter Gravitational Lensing & NFW Halo Eradication")
+        st.header("Zero-Dark-Matter Gravitational Lensing & Unified Two-Ceiling Cover Pockets")
         st.info(
-            r"🔍 **Physical Principle:** In Substrate Logistics, optical light deflection does not rely on Cold Dark Matter halos. "
-            r"Light deflection is decoupled into localized baryonic address deletion ($\theta_{\text{baryon}} \propto 1/b$) plus the linear metric unspooling tax ($\theta_{\text{scaffold}} = \frac{4 a_\Omega b}{c^2}$). "
-            r"Standard cosmology mistakes the linear unspooling tax for an invisible quadratic dark matter halo ($M_{\text{DM}} \propto b^2$). "
-            r"The module dynamically evaluates zero-parameter physical crossover horizons ($b_{\text{cross}}$ and $b_{1:1}$) where optical deflection parity and $1:1$ mass equivalence are reached."
+            r"🔍 **Physical Principle:** **Topological Cover Pocket Lensing** unifies galaxy ($3P_\delta \implies \Sigma_p = 169.47\,M_\odot/\mathrm{pc}^2$) and galaxy-cluster "
+            r"($\Sigma_0/3 \implies \Sigma_p = 2,599.82\,M_\odot/\mathrm{pc}^2$, exact bridge $1/(9\mathcal{C}_\delta) = 235.3$) strong & weak lensing via exact analytic Burkert 2D projection, "
+            r"reproducing Bullet Cluster Einstein radii ($R_E \approx 89\ \mathrm{kpc}$) and $M_{2D}(<250\ \mathrm{kpc})$ while linking directly to the SZ-to-lensing bias $(1-b)=0.8203$. "
+            r"Toggle to compare against the **Legacy Linear Scaffold ($a_\Omega$)** model."
         )
         
         with st.expander("📖 **Interactive Parameter & Demonstration Guide**", expanded=False):
             st.markdown(r"""
             ### What This Module Demonstrates
-            * **Zero-Dark-Matter Optical Deflection:** Bends light rays using only visible baryonic mass ($M_{\text{baryon}}$) plus a linear metric unspooling tax ($\theta_{\text{scaffold}} \propto b$), eliminating particle dark matter halos.
-            * **Eradication of NFW Dark Matter Halos:** Proves that standard cosmology misinterprets the linear unspooling tax as an artificial quadratic dark matter halo ($M_{\text{DM}} = \frac{a_\Omega b^2}{G} \propto b^2$).
-            * **Zero-Parameter Physical Horizons:** Dynamically calculates $b_{\text{cross}}$ ($50\%$ deflection parity) and $b_{1:1}$ ($100\%$ total baryonic mass equivalence) for any target galaxy or cluster.
-            * **SZ-to-Lensing Hydrostatic Cluster Bias ($1 - b = 0.8203$):** Connects cluster-scale optical lensing directly to the 120-cell $S_8$ Compilation Filter ($\Omega_{m,\text{void}}/\Omega_{m,\text{global}} = 0.8203$, $-17.97\%$ weak-lensing mass deficit), displaying the $(1-b) M_B$ hydrostatic baseline at $M_B \ge 10^{12} M_\odot$.
-
-            ---
-            ### 🔬 Key Physical Mechanics
-            * **Dual-Component Deflection Angle:**
-              $$\theta_{\text{total}}(b) = \frac{4 G M_{\text{enc}}(b)}{c^2 b} + \frac{4 a_\Omega b}{c^2}$$
-            * **Projected Hernquist Mass Profile:** Models extended cluster/galaxy mass distributions without central singularities:
-              $$M_{\text{enc}}(b) = M_{\text{baryon}} \left[ \frac{b^2}{(b + a_{\text{scale}})^2} \right]$$
-            * **1:1 Enclosed Mass Horizon ($b_{\text{cross}}$):** Exact crossover radius where $\theta_{\text{baryon}} = \theta_{\text{scaffold}}$:
-              $$b_{\text{cross}} = \sqrt{\frac{M_{\text{baryon}} \mathcal{K}_\Omega M_\odot}{a_\Omega m_p}} - a_{\text{scale}}$$
-
-            ---
-            ### ⚙️ Interactive Controls & Parameter Reference
-            * **Lensing Mode Selection:** Toggle between preset benchmark targets (e.g., Abell 1689, Milky Way) and live 3D catalog query mode.
-            * **Target Galaxy Dropdown (Catalog Mode):** Select any galaxy from the active survey catalog to automatically sample its 3D position $(X, Y, Z)$ and compiled baryonic mass.
-            * **Baryonic Mass Baseline:** Adjust the visible baryonic mass (stars + gas) in Solar units ($M_\odot$).
-            * **Kernel Scale ($\sigma$):** Adjust Gaussian smoothing bandwidth for local node density ($\rho_N$) and $H_{\text{local}}$ evaluation.
-
-            ---
-            ### 📡 Survey Catalog Response & Performance Guidelines
-            * **UNG 2013 (Local Volume):** Ideal for analyzing nearby dwarf and spiral galaxy footprints ($d \le 35\text{ Mpc}$).
-            * **Cosmicflows-4 & 2M++:** Deep survey catalogs tracing massive cluster centers out to $150\text{--}200\text{ Mpc}$, where local density boosts $H_{\text{local}}$ and dynamic baseline acceleration $a_\Omega$.
+            * **Unified Two-Ceiling Cover Pocket Lensing (Recommended):** Evaluates exact closed-form 2D projected Burkert surface density $\Sigma_{2D}(b)$ + compiled Hernquist baryons ($f_{\mathrm{comp}} = 0.15$ for passive-ICM clusters, $1.0$ for galaxies), extracting local convergence $\kappa(b)$, enclosed mean $\bar{\kappa}(<b)$, strong-lensing Einstein radius $R_E$, and $M_{2D}(<250\ \mathrm{kpc})$.
+            * **Hardware Pressure Ceiling Bridge:** $P_{\mathrm{iso,cluster}} / (3 P_\delta) = (\Sigma_0/3) / (3\mathcal{C}_\delta \Sigma_0) = 1 / (9\mathcal{C}_\delta) = 235.34$ connects single-galaxy pockets ($\Sigma_p = 169.5\,M_\odot/\mathrm{pc}^2$) to cluster strong-lensing cores ($\Sigma_p = 2,599.8\,M_\odot/\mathrm{pc}^2$).
+            * **Legacy Linear Scaffold ($a_\Omega$) Comparison:** Toggle to inspect the legacy $\theta_{\mathrm{scaffold}} = 4 a_\Omega b / c^2$ model and $(1-b) = 0.8203$ hydrostatic baseline.
             """)
+
+        col_lm1, col_lm2 = st.columns([1.3, 1.0])
+        lensing_model_choice = col_lm1.radio(
+            "Lensing Architecture:",
+            [
+                "Topological Cover Pocket (Linear K_Ω + Burkert)",
+                "Legacy Linear Scaffold (a_Ω)",
+            ],
+            horizontal=True,
+            key="lens_arch_mode",
+        )
+        ceiling_mode_choice = col_lm2.selectbox(
+            "Hardware Pressure Ceiling:",
+            [
+                "Auto (3 P_δ Galaxy / Σ_0/3 Cluster)",
+                "3 P_δ Galaxy Floor (169.5 M☉/pc²)",
+                "Σ_0/3 Cluster Ceiling (2,600 M☉/pc²)",
+            ],
+            index=0,
+            key="lens_ceiling_mode",
+        )
 
         # Mode Selection: Presets vs Live Catalog Query
         mode_lensing = st.radio(
@@ -1546,7 +1556,9 @@ with domain_3:
                     sigma_mpc=sigma_k,
                     tree=tree,
                     gal_positions=gal_positions,
-                    nodes_per_galaxy=nodes_per_galaxy
+                    nodes_per_galaxy=nodes_per_galaxy,
+                    lensing_model=lensing_model_choice,
+                    ceiling_mode=ceiling_mode_choice,
                 )
                 st.session_state[m_key] = (fig_lens, df_lens, lens_metrics)
 
